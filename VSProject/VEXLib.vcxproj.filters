@@ -1,0 +1,84 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="VCore">
+      <UniqueIdentifier>{298284d0-9c65-4566-9775-7d4dbc8ace8a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VCore\Systems">
+      <UniqueIdentifier>{bf7e7c9c-9fb1-49aa-aee4-eac4e9621d79}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VCore\World">
+      <UniqueIdentifier>{a4f60a4a-97d2-439f-bf4a-ee12494f7b91}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VCore\Containers">
+      <UniqueIdentifier>{f7dc61c3-ab8a-461b-a133-a4a9afa7d840}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VCore\Utils">
+      <UniqueIdentifier>{7453fd1b-2a9a-4298-acb6-738c1e18aca3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="VCore\Deps">
+      <UniqueIdentifier>{7f2660f6-b159-4242-9f95-bc8ac483b851}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\VCore\Containers\Dict.h">
+      <Filter>VCore\Containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Containers\Ring.h">
+      <Filter>VCore\Containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Containers\SOAJoint.h">
+      <Filter>VCore\Containers</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fastmod.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\MurmurHash3.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Systems\ISystem.h">
+      <Filter>VCore\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Systems\SystemManager.h">
+      <Filter>VCore\Systems</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\World\ComponentBase.h">
+      <Filter>VCore\World</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\World\Entity.h">
+      <Filter>VCore\World</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\World\IGlobal.h">
+      <Filter>VCore\World</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\World\Storage.h">
+      <Filter>VCore\World</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\World\World.h">
+      <Filter>VCore\World</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Utils\HashUtils.h">
+      <Filter>VCore\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Utils\StateRecorder.h">
+      <Filter>VCore\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Utils\TypeInfoUtils.h">
+      <Filter>VCore\Utils</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\VCore\World\ComponentBase.cpp">
+      <Filter>VCore\World</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VCore\World\Storage.cpp">
+      <Filter>VCore\World</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VCore\World\World.cpp">
+      <Filter>VCore\World</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VCore\Utils\TypeInfoUtils .cpp">
+      <Filter>VCore\Utils</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

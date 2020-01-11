@@ -20,6 +20,7 @@
  */
 #include <functional>
 #include <string>
+#include <VCore/World/IGlobal.h>
 #include <VCore/World/Storage.h>
 
 namespace core
@@ -68,24 +69,23 @@ namespace core
 		EntityHandle Clone(EntityHandle original);
 
 		// default constructs if not present 
-		//template<class TSingle>
-		//TSingle* const GetGlobal()
-		//{
-		//	static_assert(std::is_base_of<IGlobal, TSingle>::value,
-		//		"type must inherit from global");
-		//	const auto type_id = tinfo::typeID<TSingle>();
-		//	if (!_singles.Contains(type_id))
-		//	{
-		//		auto unique = std::make_unique<TSingle>();
-		//		IGlobal* inst = _singles.EmplaceAndGet(type_id,
-		//			std::move(unique)).get();
+		template<class TSingle>
+		TSingle* const GetGlobal()
+		{
+			static_assert(std::is_base_of<IGlobal, TSingle>::value,
+				"type must inherit from global");
+			const auto type_id = tinfo::typeID<TSingle>();
+			if (!_singles.Contains(type_id))
+			{
+				auto unique = std::make_unique<TSingle>();
+				IGlobal* inst = _singles.EmplaceAndGet(type_id,
+					std::move(unique)).get();
 
-		//		return static_cast<TSingle*>(inst);
-		//	}
+				return static_cast<TSingle*>(inst);
+			}
 
-		//	return static_cast<TSingle*>(_singles[type_id].get());
-		//}
-
+			return static_cast<TSingle*>(_singles[type_id].get());
+		}
 
 		// * Component operations  
 		// Get first component of type; 
@@ -165,8 +165,7 @@ namespace core
 				return *(existingHandle->As<Storage<TComp>>());
 
 			// #todo add CompTraits to set default storage cap per type
-			Storage<TComp>* storage = new Storage<TComp>();
-			// storage could be captured actually, could switch to that 
+			Storage<TComp>* storage = new Storage<TComp>(); 
 
 			// creates UniqueHandler in-place which should free storage upon destruction
 			// like std::unique_ptr<Storage<TComp>, decltype(deleter)> would
@@ -237,7 +236,7 @@ namespace core
 		};
 
 		Dict<std::string, tfArchetypeBuilder> _archetypes;
-		//Dict<tTypeID, std::unique_ptr<IGlobal>> _singles;
+		Dict<tTypeID, std::unique_ptr<IGlobal>> _singles;
 
 		std::vector<int> _freeStack; 
 

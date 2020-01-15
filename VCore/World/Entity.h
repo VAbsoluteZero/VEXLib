@@ -6,7 +6,7 @@
 #include <VCore/World/ComponentBase.h>
 #include <VCore/Utils/TypeInfoUtils.h>  
 
-namespace core 
+namespace vex 
 {
 	typedef int16_t tIDType;
 

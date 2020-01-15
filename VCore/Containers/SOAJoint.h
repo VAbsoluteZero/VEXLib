@@ -25,7 +25,7 @@
 #include <type_traits>
 #include <VCore/Utils/HashUtils.h>
 
-namespace core
+namespace vex
 {
 	inline constexpr int roundUp(int n, int m)
 	{

@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <cassert>
 
-namespace core
+namespace vex
 {
 	using tTypeID = uint32_t;
 	// #todo to be replaced by decent lib https://github.com/Manu343726/ctti

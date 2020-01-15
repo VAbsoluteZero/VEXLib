@@ -5,7 +5,7 @@
  */
 
 #include<vector>
-namespace core
+namespace vex
 {
 	template<int N, class T>
 	class Ring

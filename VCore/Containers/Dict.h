@@ -41,7 +41,7 @@
 
  // # TODO: add support for ALLOCATORS
  // # TODO: implement shrink/realloc
-namespace core
+namespace vex
 {
 	template<typename TKey>
 	struct hasher

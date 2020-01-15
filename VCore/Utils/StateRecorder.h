@@ -6,7 +6,7 @@
 #include <VCore/Containers/Ring.h>
 #include <VCore/World/World.h>
 
-namespace core
+namespace vex
 { 
 	template<size_t N = 30>
 	class StateRecorder
@@ -14,7 +14,7 @@ namespace core
 	public:  
 		int Size() { return  _snapshots.Size(); }
 
-		void Write(core::World& world)
+		void Write(vex::World& world)
 		{
 			Snapshot shot;
 			shot.Entities = world.Entities;
@@ -28,7 +28,7 @@ namespace core
 			_snapshots.Put(std::move(shot));
 		}
 
-		bool Read(core::World& world)
+		bool Read(vex::World& world)
 		{
 			if (_snapshots.Empty())
 				return false;

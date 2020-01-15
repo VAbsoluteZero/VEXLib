@@ -7,7 +7,7 @@
  
 #include <VCore/World/Entity.h>
 
-namespace core 
+namespace vex 
 {
 	class StorageBase
 	{

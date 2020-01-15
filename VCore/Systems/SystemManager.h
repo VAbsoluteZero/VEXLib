@@ -9,7 +9,7 @@
 
 #include <unordered_set>
 
-namespace core
+namespace vex
 {
 	class SystemManager
 	{

@@ -22,7 +22,7 @@
 #include <string>
 #include <VCore/World/Storage.h>
 
-namespace core
+namespace vex
 {
 	class World;
 	using tfArchetypeBuilder = std::function<bool(World&, EntityHandle)>;
@@ -63,7 +63,8 @@ namespace core
 
 
 		// name is just for debug, it is Not an ID
-		EntityHandle CreateBlank(const char* name = nullptr);
+		EntityHandle CreateBlank();
+		EntityHandle CreateBlank(const char* name);
 
 		EntityHandle Clone(EntityHandle original);
 
@@ -193,24 +194,21 @@ namespace core
 			_archetypes.Clear();
 		}
 
-	private:   
-		/**
-		* could use unique_ptr, but this is more convenient
-		* + zero cost reinterpret cast since type guaranteed to match
-		*/ 
+	private:
 		struct UniqueHandle
 		{
 			using tDataPtr = StorageBase*; 
+#ifndef NDEBUG
 			static constexpr int kDebugGuard = 100200300;
 			int DebugGuard = kDebugGuard;
+#endif
 			tTypeID const kTypeID; 
 			tMask const kMask;
 
 			template<typename T>
 			T* const As() const
 			{ 
-				//static_assert(tinfo::typeID<T>() == kTypeID, "type check failed");
-				return static_cast<T*>(_data);
+				return static_cast<T*>(_data); // no need for dynamic, types guaranteed to match
 			}
 
 			StorageBase* const Get() const { return _data; }
@@ -228,7 +226,6 @@ namespace core
 			}
 
 			UniqueHandle(const UniqueHandle&) = delete;
-
 			UniqueHandle& operator=(UniqueHandle&& other) noexcept;
 			~UniqueHandle();
 
@@ -244,8 +241,38 @@ namespace core
 		// => todo rename to _ after moved to private
 		std::vector<Entity> Entities;
 		Dict<tTypeID, UniqueHandle> Storages;
-	public:
 
+	public: 
+			class EntityBuilder
+			{
+			public:
+				template<typename TComp, class ...TArgs>
+				inline const EntityBuilder& Add(TArgs&&... arguments)
+				{
+					_world->CreateComponent(EntID, std::forward<TArgs>(arguments));
+					return *this;
+				}
+				template<typename TComp, class ...TArgs>
+				inline const auto& AddAndGet(TArgs&&... arguments)
+				{
+					return _world->CreateComponent(EntID, std::forward<TArgs>(arguments));
+				}
+				const EntityHandle EntID;
+
+				operator EntityHandle() const { return EntID; }
+			private:
+				EntityBuilder(World* owner, EntityHandle h) : EntID(h), _world(owner) {}
+				EntityBuilder() = delete;
+				World* _world;
+				friend class World;
+			};
+
+			EntityBuilder CreateBlankBuilder(const char* name = nullptr)
+			{
+				return EntityBuilder(this, CreateBlank(name));
+			}
+	public:
+		//-------------------------------------------- Enumerators ----------------------------------
 		struct EntityEnumerable
 		{ 
 			auto begin() noexcept { return _owner.Entities.begin(); }
@@ -362,8 +389,7 @@ namespace core
 		CompEnumerable<TTypes...> GetCompEnum() { return *this; }
 
 		template<>
-		struct CompEnumerable<> {};
-
+		struct CompEnumerable<> {}; 
 
 		template<size_t N>
 		friend class StateRecorder;

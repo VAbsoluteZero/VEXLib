@@ -1,3 +1,3 @@
 #include <VCore/World/ComponentBase.h>
  
-int core::ComponentCounter::gCount = 1;
+int vex::ComponentCounter::gCount = 1;

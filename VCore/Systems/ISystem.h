@@ -3,7 +3,7 @@
  * MIT LICENSE
  * Copyright (c) 2019 Vladyslav Joss
  */
-namespace core
+namespace vex
 {
 	class World;
 	class ISystem

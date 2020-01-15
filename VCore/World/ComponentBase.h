@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <string>
 
-namespace core
+namespace vex
 {
 	using tMask = uint64_t;
 	struct ComponentCounter

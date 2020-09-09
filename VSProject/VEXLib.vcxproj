@@ -161,10 +161,12 @@
     <ClInclude Include="..\VCore\Containers\Dict.h" />
     <ClInclude Include="..\VCore\Containers\Ring.h" />
     <ClInclude Include="..\VCore\Containers\SOAJoint.h" />
+    <ClInclude Include="..\VCore\Containers\Union.h" />
     <ClInclude Include="..\VCore\Dependencies\fastmod.h" />
     <ClInclude Include="..\VCore\Dependencies\MurmurHash3.h" />
     <ClInclude Include="..\VCore\Systems\ISystem.h" />
     <ClInclude Include="..\VCore\Systems\SystemManager.h" />
+    <ClInclude Include="..\VCore\Utils\CoreTemplates.h" />
     <ClInclude Include="..\VCore\Utils\HashUtils.h" />
     <ClInclude Include="..\VCore\Utils\StateRecorder.h" />
     <ClInclude Include="..\VCore\Utils\TypeInfoUtils.h" />

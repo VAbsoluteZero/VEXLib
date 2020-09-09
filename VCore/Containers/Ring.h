@@ -4,10 +4,10 @@
  * Copyright (c) 2019 Vladyslav Joss
  */
 
-#include<vector>
+#include <vector>
 namespace vex
 {
-	template<int N, class T>
+	template <int N, class T>
 	class Ring
 	{
 	public:
@@ -24,15 +24,12 @@ namespace vex
 			return i;
 		}
 
-		bool Full()
-		{
-			return (N - 1) == _size;
-		}
+		bool Full() { return (N - 1) == _size; }
 
 		bool Empty() { return 0 == _size; }
 		int Size() { return _size; }
 
-		template<typename TFwd = T>
+		template <typename TFwd = T>
 		T& Put(TFwd&& item)
 		{
 			_first++;
@@ -65,19 +62,13 @@ namespace vex
 			return std::move(_items[i]);
 		}
 
-		T& Peek()
-		{
-			return _items[_first];
-		}
+		T& Peek() { return _items[_first]; }
 
-		Ring()
-		{
+		Ring() { _first = _size = 0; }
 
-			_first = _size = 0;
-		}
 	private:
 		std::array<T, N> _items;
 		int _size = 0;
 		int _first = 0;
 	};
-}
+} // namespace vex

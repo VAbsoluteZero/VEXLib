@@ -3,8 +3,8 @@
  * MIT LICENSE
  * Copyright (c) 2019 Vladyslav Joss
  */
-#include <cstdint>
 #include <cassert>
+#include <cstdint>
 
 namespace vex
 {
@@ -12,9 +12,11 @@ namespace vex
 	// #todo to be replaced by decent lib https://github.com/Manu343726/ctti
 	namespace __internal
 	{
-		struct tidCounter {
+		struct tidCounter
+		{
 		private:
 			static int gCount;
+
 		public:
 			static int CurrentCount() { return gCount; }
 			static int Next() { return ++gCount; }
@@ -24,9 +26,9 @@ namespace vex
 		{
 			static const tTypeID GenTid;
 		};
-		template<typename T>
+		template <typename T>
 		const tTypeID tidHolder<T>::GenTid = tidCounter::Next();
-	}
+	} // namespace __internal
 
 	namespace tinfo
 	{
@@ -34,12 +36,12 @@ namespace vex
 		static tTypeID typeID() noexcept
 		{
 			return __internal::tidHolder<T>::GenTid;
-			//return &(__internal::IDHolder<T>::Identifier);
+			// return &(__internal::IDHolder<T>::Identifier);
 		}
 		template <typename T>
 		const uint64_t typeIDUInt() noexcept
 		{
 			return (uint64_t)typeID<T>();
 		}
-	} 
-}
+	} // namespace tinfo
+} // namespace vex

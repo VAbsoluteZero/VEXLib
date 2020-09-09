@@ -21,9 +21,8 @@
 
 using namespace vex;
 
-bool vex::World::RegisterArchetype(const std::string& id,
-	tfArchetypeBuilder builder, bool replace)
-{  
+bool vex::World::RegisterArchetype(const std::string& id, tfArchetypeBuilder builder, bool replace)
+{
 	if (!replace && _archetypes.Contains(id))
 		return false;
 
@@ -39,15 +38,15 @@ EntityHandle vex::World::InstantiateArchetype(const std::string& id)
 
 	// #todo fixme
 	EntityHandle newOne = CreateBlank("-of archetype-");
-	Entity& ent = Entities[newOne.ID];
+	// Entity& ent = Entities[newOne.ID];
 
 	bool created = _archetypes[id](*this, newOne);
 	if (!created)
 	{
 		Destroy(newOne);
-		
+
 		return EntityHandle{};
-	} 
+	}
 	return newOne;
 }
 
@@ -56,7 +55,7 @@ bool vex::World::Destroy(EntityHandle handle)
 	if (!Contains(handle))
 		return false;
 
-	auto& entRef = Entities[handle.ID]; 
+	auto& entRef = Entities[handle.ID];
 
 	for (Dict<tTypeID, UniqueHandle>::Record& kv : Storages)
 	{
@@ -67,14 +66,14 @@ bool vex::World::Destroy(EntityHandle handle)
 	}
 	entRef.ComponentMask = 0;
 
-	Entities[handle.ID].Handle = {}; 
+	Entities[handle.ID].Handle = {};
 	_freeStack.push_back(handle.ID);
 
 	return true;
 }
 vex::EntityHandle vex::World::CreateBlank()
 {
-	int pos = Entities.size();
+	int pos = (int)Entities.size();
 	if (_freeStack.size() > 0)
 	{
 		pos = _freeStack.back();
@@ -86,16 +85,17 @@ vex::EntityHandle vex::World::CreateBlank()
 	}
 
 	Entity& ent = Entities[pos];
-	ent.Handle = EntityHandle{ pos }; 
+	ent.Handle = EntityHandle{pos};
 	return ent;
 }
- 
+
 vex::EntityHandle vex::World::CreateBlank(const char* name)
 {
 	auto ent = CreateBlank();
 	if (name != nullptr)
 	{
-		DebugName nameStruct; nameStruct.Name = name;
+		DebugName nameStruct;
+		nameStruct.Name = name;
 		CreateComponent<DebugName>(ent, nameStruct);
 	}
 	return ent;
@@ -124,17 +124,17 @@ EntityHandle vex::World::Clone(EntityHandle original)
 
 vex::World::UniqueHandle::~UniqueHandle()
 {
-#ifndef  NDEBUG 
+#ifndef NDEBUG
 	if (kDebugGuard == DebugGuard)
-		delete _data; 
+		delete _data;
 	else
-	{  
+	{
 		__debugbreak();
 	}
 #endif // ! NDEBUG
 }
 
-vex::World::UniqueHandle&  vex::World::UniqueHandle::operator=(vex::World::UniqueHandle&& other) noexcept
+vex::World::UniqueHandle& vex::World::UniqueHandle::operator=(vex::World::UniqueHandle&& other) noexcept
 {
 	if (this != &other)
 	{

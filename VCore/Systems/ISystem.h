@@ -9,8 +9,8 @@ namespace vex
 	class ISystem
 	{
 	public:
-		virtual ~ISystem() {};
+		virtual ~ISystem(){};
 
-		virtual void OnUpdate(World& world) {};
+		virtual void OnUpdate(World& world){};
 	};
-}
+} // namespace vex

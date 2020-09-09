@@ -7,12 +7,12 @@
 #include <VCore/World/World.h>
 
 namespace vex
-{ 
-	template<size_t N = 30>
+{
+	template <size_t N = 30>
 	class StateRecorder
 	{
-	public:  
-		int Size() { return  _snapshots.Size(); }
+	public:
+		int Size() { return _snapshots.Size(); }
 
 		void Write(vex::World& world)
 		{
@@ -21,9 +21,7 @@ namespace vex
 			shot.FreeStack = world._freeStack;
 			for (auto& storage : world.Storages)
 			{
-				shot.Storages.Emplace(storage.Key,
-					std::move(storage.Value.Get()->DuplicateSelf())
-				);
+				shot.Storages.Emplace(storage.Key, std::move(storage.Value.Get()->DuplicateSelf()));
 			}
 			_snapshots.Put(std::move(shot));
 		}
@@ -59,6 +57,7 @@ namespace vex
 
 			return true;
 		}
+
 	private:
 		struct Snapshot
 		{
@@ -67,10 +66,7 @@ namespace vex
 			std::vector<int> FreeStack;
 
 			Snapshot() = default;
-			Snapshot(Snapshot&& other) noexcept
-			{
-				*this = std::move(other);
-			}
+			Snapshot(Snapshot&& other) noexcept { *this = std::move(other); }
 
 			Snapshot& operator=(Snapshot&& other) noexcept
 			{
@@ -84,7 +80,8 @@ namespace vex
 				return *this;
 			}
 		};
+
 	public:
 		Ring<N, Snapshot> _snapshots;
 	};
-}
+} // namespace vex

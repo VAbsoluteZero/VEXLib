@@ -2,18 +2,19 @@
 /*
  * MIT LICENSE
  * Copyright (c) 2019 Vladyslav Joss
- */ 
+ */
 #include <VCore/Containers/Dict.h>
- 
 #include <VCore/World/Entity.h>
 
-namespace vex 
+#include <memory>
+
+namespace vex
 {
 	class StorageBase
 	{
 	public:
-		StorageBase(tMask m, tTypeID tid) : kMask(m), kTypeID(tid) {};
-		virtual ~StorageBase() = 0 {};
+		StorageBase(tMask m, tTypeID tid) : kMask(m), kTypeID(tid){};
+		virtual ~StorageBase(){};
 		virtual bool Remove(EntityHandle h) = 0;
 		virtual bool Clone(EntityHandle original, EntityHandle newOne) = 0;
 
@@ -26,15 +27,12 @@ namespace vex
 		const tTypeID kTypeID;
 	};
 
-	// ! #todo change API to resemble Chandler Carruth's idea of hashtable api  
-	template<class TComp>
+	// ! #todo change API to resemble Chandler Carruth's idea of hashtable api
+	template <class TComp>
 	class Storage final : public StorageBase
-	{ 
-	public:  
-		inline TComp* Find(EntityHandle handle) const noexcept
-		{
-			return _data.TryGet(handle);
-		}
+	{
+	public:
+		inline TComp* Find(EntityHandle handle) const noexcept { return _data.TryGet(handle); }
 
 		static inline TComp* Find(const Storage<TComp>& store, EntityHandle handle) noexcept
 		{
@@ -42,48 +40,42 @@ namespace vex
 		}
 
 		template <typename T = TComp>
-		inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&>
-		Get(EntityHandle handle)
+		inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> Get(EntityHandle handle)
 		{
 			return _data[handle];
 		}
 
 		template <typename T = TComp>
-		inline typename std::enable_if_t<std::is_default_constructible<T>::value, T*>
-		First()
+		inline typename std::enable_if_t<std::is_default_constructible<T>::value, T*> First()
 		{
 			return _data.Any();
 		}
 
-		template<class ...TArgs>
+		template <class... TArgs>
 		inline TComp& Emplace(EntityHandle handle, TArgs&&... arguments)
 		{
 			// create or replace
 			return _data.EmplaceAndGet(handle, std::forward<TArgs>(arguments)...);
 		}
 
-		// Inherited via StorageBase 
+		// Inherited via StorageBase
 		virtual bool Clone(EntityHandle original, EntityHandle newOne) override
 		{
-			if (!_data.Contains(original)) return false;
+			if (!_data.Contains(original))
+				return false;
 			TComp& ncomp = *_data.TryGet(original);
-			_data.Emplace(newOne, ncomp);;
+			_data.Emplace(newOne, ncomp);
+			;
 			return true;
 		}
-		virtual bool Remove(EntityHandle handle) override 
-		{
-			return _data.Remove(handle);
-		} 
+		virtual bool Remove(EntityHandle handle) override { return _data.Remove(handle); }
 
-		virtual void Clear() override
-		{
-			_data.Clear();
-		}
+		virtual void Clear() override { _data.Clear(); }
 
 		struct DataEnumerable
 		{
-			auto begin() { return _data.begin(); }
-			auto end() { return _data.end(); } 
+			auto begin() { return _owner._data.begin(); }
+			auto end() { return _owner._data.end(); }
 
 		private:
 			DataEnumerable(const Storage& owner) : _owner(owner) {}
@@ -91,9 +83,9 @@ namespace vex
 			friend class Storage;
 		};
 
-		DataEnumerable Enumerable() { return *this; } //implicit conversion to enumerable 
-		 
-		const int GenID = 0; 
+		DataEnumerable Enumerable() { return *this; } // implicit conversion to enumerable
+
+		const int GenID = 0;
 
 		// Inherited via StorageBase
 		virtual std::unique_ptr<StorageBase> DuplicateSelf() override
@@ -102,9 +94,9 @@ namespace vex
 			inst->_data = _data;
 			std::unique_ptr<StorageBase> ret(inst);
 			return std::move(ret);
-		} 
+		}
 
-		virtual bool MoveFrom(StorageBase* other) override 
+		virtual bool MoveFrom(StorageBase* other) override
 		{
 			if (!other || other->kMask != kMask)
 				return false;
@@ -117,16 +109,15 @@ namespace vex
 		}
 
 
-		Storage() : StorageBase(TComp::Mask, tinfo::typeID<TComp>())
-		{ 
-		} 
+		Storage() : StorageBase(TComp::Mask, tinfo::typeID<TComp>()) {}
 
 		virtual ~Storage() {}
-	private: 
+
+	private:
 		// underlying container may (and should) be replaced to tailor-made storage,
 		// this will do for now though. Usually I would have direct lookup table and raw
 		// array with it, but since this (Dict) hashtable implementation
 		// stores elements in continuous memory region thats ok.
-		Dict<EntityHandle, TComp, EntHandleHasher> _data; 
+		Dict<EntityHandle, TComp, EntHandleHasher> _data;
 	};
-}
+} // namespace vex

@@ -18,86 +18,87 @@
  * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include <vector>  
-#include <VCore/Utils/HashUtils.h> 
 #include <VCore/Containers/SOAJoint.h>
-#include <optional> 
+#include <VCore/Utils/HashUtils.h>
+
+#include <optional>
+#include <vector>
 
 #ifdef ECSCORE_x64
 #include <VCore/Dependencies/fastmod.h>
 #endif
 
-#ifndef  FORCE_INLINE
-	#if defined(_MSC_VER)
+#ifndef FORCE_INLINE
+#if defined(_MSC_VER)
 
-	#define FORCE_INLINE	__forceinline 
+#define FORCE_INLINE __forceinline
 
-	#else	// defined(_MSC_VER)
+#else // defined(_MSC_VER)
 
-	#define	FORCE_INLINE inline __attribute__((always_inline))  
+#define FORCE_INLINE inline __attribute__((always_inline))
 
-	#endif 
+#endif
 #endif // ! FORCE_INLINE
 
- // # TODO: add support for ALLOCATORS
- // # TODO: implement shrink/realloc
+// # TODO: add support for ALLOCATORS
+// # TODO: implement shrink/realloc
 namespace vex
 {
-	template<typename TKey>
+	template <typename TKey>
 	struct hasher
 	{
-		inline static int Hash(const TKey& key) 
-		{ 
+		inline static int Hash(const TKey& key)
+		{
 			// '-val' hash range is reserved for
 			// empty records (effectively taking one bit from .Hash field)
-			return (int)std::hash<TKey>{}(key); 
+			return (int)std::hash<TKey>{}(key);
 		}
 	};
-	template<>
+	template <>
 	struct hasher<int>
 	{
 		inline static int Hash(const int& key) { return key; }
 	};
 
-	template<>
+	template <>
 	struct hasher<std::string>
-	{ 
+	{
 		inline static int Hash(const std::string& key)
 		{
 			return murmur::MurmurHash3_x86_32(key.data(), (int)key.size());
 		}
-	}; 
-	struct DSentinel {};
+	};
+	struct DSentinel
+	{
+	};
 	static constexpr const DSentinel kEndIteratorSentinel{};
-	/* 
-	* Simple and readable Hashtable/Map/Dictionary implementation.
-	* Loosely based on the .net (C#) dictionary implementation,
-	* optimized for fast insert/iteration/lookup. 
-	* It preforms 1.5x to 10x faster than std::unordered_map in certain situations.
-	* All around it is much faster to fill and iterate through it
-	* regardless of element size due to cache friendliness. 
-	* Lookup of an element takes about the same time.
-	* 
-	* Data storage itself is a flat SOA-like structure, all logical parts of the dictionary (buckets, recs..)
-	* are allocated inside same buffer/memory region.
-	* There are some checks to ensure that POD-like data is being processed as such. 
-	* This container does not require neither Key nor Val to have default constructor.
-	*
-	* NOTE (1): this container does NOT resemble unordered_map in a way it is allocated -
-	* it is using flat memory buffer for all elements (instead of just storing pointers and
-	* allocating storage for elements later), so if you are using HUGE (lets say
-	* more than 2048 bytes) structures and lots of them - it could be better
-	* to use std version instead. Otherwises there could be spikes on alloc/realloc or free.
-	* Basically allocating 2MB+ upfront could be expensive.
-	*/
+	/*
+	 * Simple and readable Hashtable/Map/Dictionary implementation.
+	 * Loosely based on the .net (C#) dictionary implementation,
+	 * optimized for fast insert/iteration/lookup.
+	 * It preforms 1.5x to 10x faster than std::unordered_map in certain situations.
+	 * All around it is much faster to fill and iterate through it
+	 * regardless of element size due to cache friendliness.
+	 * Lookup of an element takes about the same time.
+	 *
+	 * Data storage itself is a flat SOA-like structure, all logical parts of the dictionary (buckets, recs..)
+	 * are allocated inside same buffer/memory region.
+	 * There are some checks to ensure that POD-like data is being processed as such.
+	 * This container does not require neither Key nor Val to have default constructor.
+	 *
+	 * NOTE (1): this container does NOT resemble unordered_map in a way it is allocated -
+	 * it is using flat memory buffer for all elements (instead of just storing pointers and
+	 * allocating storage for elements later), so if you are using HUGE (lets say
+	 * more than 2048 bytes) structures and lots of them - it could be better
+	 * to use std version instead. Otherwises there could be spikes on alloc/realloc or free.
+	 * Basically allocating 2MB+ upfront could be expensive.
+	 */
 
 	// #todo partially specialize for strings
-	template<typename TKey,
-		typename TVal,
-		typename THasher = hasher<TKey>>
+	template <typename TKey, typename TVal, typename THasher = hasher<TKey>>
 	class Dict
 	{
-	public: 
+	public:
 		typedef TKey KeyType;
 		typedef TVal ValueType;
 		struct Record
@@ -106,41 +107,36 @@ namespace vex
 			TVal Value;
 		};
 
-		inline int Size() const noexcept  { return _top - _freeCount; }
-		inline int Capacity() const noexcept  { return (int)_buckets.Capacity; }
-		 
-		explicit Dict(uint32_t capacity = 7) :
-			_data(util::ClosestPrimeSearch(capacity)) 
+		inline int Size() const noexcept { return _top - _freeCount; }
+		inline int Capacity() const noexcept { return (int)_buckets.Capacity; }
+
+		explicit Dict(uint32_t capacity = 7) : _data(util::ClosestPrimeSearch(capacity))
 		{
-			AssignNewBufferHandles(); 
+			AssignNewBufferHandles();
 
 			std::fill_n(_buckets.First, _buckets.size(), -1);
-			auto b = ControlBlock{ -1, -1 };
+			auto b = ControlBlock{-1, -1};
 			std::fill_n(_blocks.First, _blocks.size(), b);
 		}
-		  
-		Dict(const Dict& other) :
-			_data(other.Capacity())
+
+		Dict(const Dict& other) : _data(other.Capacity())
 		{
-			AssignNewBufferHandles(); 
+			AssignNewBufferHandles();
 
 			_top = other._top;
 			_free = other._free;
 			_freeCount = other._freeCount;
 
-			RawBuffer<int32_t> otherBuckets = other._data.GetBuffer<0, int32_t>();
-			RawBuffer<ControlBlock> otherBlocks = other._data.GetBuffer<1, ControlBlock>();
-			RawBuffer<Record> otherRecs = other._data.GetBuffer<2, Record>();
+			RawBuffer<int32_t> otherBuckets = other._data.template GetBuffer<0, int32_t>();
+			RawBuffer<ControlBlock> otherBlocks = other._data.template GetBuffer<1, ControlBlock>();
+			RawBuffer<Record> otherRecs = other._data.template GetBuffer<2, Record>();
 
 			otherBuckets.CopyTo(_buckets, {});
 			otherBlocks.CopyTo(_blocks);
 
 			if constexpr (std::is_trivially_copyable<Record>::value)
 			{
-				std::memcpy(_records.First,
-					otherRecs.First,
-					otherRecs.Capacity * sizeof(Record)
-				);
+				std::memcpy(_records.First, otherRecs.First, otherRecs.Capacity * sizeof(Record));
 			}
 			else
 			{
@@ -148,13 +144,13 @@ namespace vex
 				{
 					if (otherBlocks[i].Hash >= 0)
 					{
-						new (&_records[i])Record(otherRecs[i]);
+						new (&_records[i]) Record(otherRecs[i]);
 					}
 				}
 			}
 		}
 
-		Dict& operator=(const Dict& other)  
+		Dict& operator=(const Dict& other)
 		{
 			if (this != &other)
 			{
@@ -166,7 +162,7 @@ namespace vex
 		}
 
 		Dict& operator=(Dict&& other)
-		{ 
+		{
 			if (this != &other)
 			{
 				_data = std::move(other._data);
@@ -175,26 +171,24 @@ namespace vex
 				_free = other._free;
 				_freeCount = other._freeCount;
 				AssignNewBufferHandles();
-			
+
 				other._top = 0;
 				other._freeCount = 0;
 				other._free = 0;
-				other._data = SOAJointBuffer<int,
-					ControlBlock, 
-					Record>(util::ClosestPrimeSearch(3));
+				other._data = SOAJointBuffer<int, ControlBlock, Record>(util::ClosestPrimeSearch(3));
 
 				other.AssignNewBufferHandles();
 				std::fill_n(other._buckets.First, other._buckets.size(), -1);
-				auto b = ControlBlock{ -1, -1 };
+				auto b = ControlBlock{-1, -1};
 				std::fill_n(other._blocks.First, other._blocks.size(), b);
 			}
 
 			return *this;
 		}
 
-		~Dict() 
+		~Dict()
 		{
-			if constexpr (!std::is_trivially_destructible<Record>::value) 
+			if constexpr (!std::is_trivially_destructible<Record>::value)
 			{
 				for (int i = 0; i < _blocks.size(); ++i)
 				{
@@ -203,14 +197,13 @@ namespace vex
 					_blocks[i].Hash = -1;
 				}
 			}
-		} 
+		}
 
 		template <typename T = TVal>
-		inline typename std::enable_if_t<std::is_default_constructible<T>::value, T*>
-			Any()
-		{ 
+		inline typename std::enable_if_t<std::is_default_constructible<T>::value, T*> Any()
+		{
 			if (Size() > 0)
-			{ 
+			{
 				for (int i = 0; i < Size(); ++i)
 				{
 					if (_blocks[i].Hash > 0)
@@ -221,47 +214,47 @@ namespace vex
 			return nullptr;
 		}
 
-		template<class... Types>
+		template <class... Types>
 		inline void Emplace(const TKey& key, Types&&... arguments)
 		{
 			int i = FindRec(key);
 			if (i >= 0)
 			{
 				_records[i].Value.~TVal();
-				new(&_records[i].Value) TVal(std::forward<Types>(arguments)...); 
+				new (&_records[i].Value) TVal(std::forward<Types>(arguments)...);
 			}
 			else
 			{
 				Record& r = CreateRecord(key);
-				new(&r.Value) TVal(std::forward<Types>(arguments)...); 
+				new (&r.Value) TVal(std::forward<Types>(arguments)...);
 			}
 		}
-		 static inline volatile int dbg  ;
-		template<class... Types>
+		static inline volatile int dbg;
+		template <class... Types>
 		inline TVal& EmplaceAndGet(const TKey& key, Types&&... arguments)
 		{
 			int i = FindRec(key);
 			if (i >= 0)
 			{
-				_records[i].Value.~TVal(); 
-				new(&_records[i].Value) TVal(std::forward<Types>(arguments)...);
+				_records[i].Value.~TVal();
+				new (&_records[i].Value) TVal(std::forward<Types>(arguments)...);
 				return _records[i].Value;
 			}
 			else
 			{
 				Record& r = CreateRecord(key);
-				new(&r.Value) TVal(std::forward<Types>(arguments)...);
+				new (&r.Value) TVal(std::forward<Types>(arguments)...);
 				return r.Value;
 			}
 		}
 
 		template <typename T = TVal>
-		inline typename std::enable_if_t<std::is_default_constructible<T>::value, TVal>
-			ValueOrDefault(const TKey& key) const
+		inline typename std::enable_if_t<std::is_default_constructible<T>::value, TVal> ValueOrDefault(
+			const TKey& key) const
 		{
 			int ind = FindRec(key);
 			return ind >= 0 ? _records[ind].Value : TVal();
-		}  
+		}
 
 		inline TVal* TryGet(const TKey& key) const noexcept
 		{
@@ -271,19 +264,19 @@ namespace vex
 
 		bool Remove(const TKey& key) noexcept
 		{
-			int hashCode = THasher::Hash(key)& 0x7FFFFFFF;
+			int hashCode = THasher::Hash(key) & 0x7FFFFFFF;
 			int bucket = mod(hashCode, _buckets.size());
 			int previous = -1;
 			for (int i = _buckets[bucket]; i >= 0; previous = i, i = _blocks[i].Next)
 			{
 				if (_blocks[i].Hash == hashCode && (_records[i].Key == key))
 				{
-					//only
+					// only
 					if (previous < 0)
 					{
 						_buckets[bucket] = _blocks[i].Next;
 					}
-					//middle or last
+					// middle or last
 					else
 					{
 						_blocks[previous].Next = _blocks[i].Next;
@@ -330,13 +323,13 @@ namespace vex
 			}
 
 			std::fill_n(_buckets.First, _buckets.size(), -1);
-			auto b = ControlBlock{ -1, -1 };
+			auto b = ControlBlock{-1, -1};
 			std::fill_n(_blocks.First, _blocks.size(), b);
 		}
 
 
 		struct DIterator
-		{ 
+		{
 			FORCE_INLINE bool Advance()
 			{
 				int count = _map.Size();
@@ -354,10 +347,7 @@ namespace vex
 				return false;
 			}
 
-			FORCE_INLINE bool IsDone() const
-			{
-				return _index >= (_map.Size());
-			}
+			FORCE_INLINE bool IsDone() const { return _index >= (_map.Size()); }
 
 			friend auto operator==(DIterator lhs, DSentinel rhs) { return lhs.IsDone(); }
 			friend auto operator==(DSentinel lhs, DIterator rhs) { return rhs == lhs; }
@@ -365,51 +355,51 @@ namespace vex
 			friend auto operator!=(DSentinel lhs, DIterator rhs) { return !(lhs == rhs); }
 
 			inline Record& operator*() const { return Current(); }
-			inline auto& operator++() 
-			{ 
-				Advance(); 
+			inline auto& operator++()
+			{
+				Advance();
 				return *this;
 			}
 
 			inline Record& Current() const
 			{
-				//assert(_index < _map.Size());
+				// assert(_index < _map.Size());
 				return _map._records[_index];
 			}
 
 		private:
 			DIterator(const Dict& owner) : _map(owner) {}
 			const Dict& _map;
-			int _index = 0;;
+			int _index = 0;
+			;
 
 			friend class Dict;
-		};  
-		
-		FORCE_INLINE DIterator begin() noexcept { return DIterator{ *this }; };
+		};
+
+		FORCE_INLINE DIterator begin() noexcept { return DIterator{*this}; };
 		FORCE_INLINE DSentinel end() const noexcept { return kEndIteratorSentinel; };
 
 		template <typename T = TVal>
-		inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&>
-			operator[](const TKey& key)
+		inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> operator[](const TKey& key)
 		{
 			int i = FindRec(key);
 
 			if (i < 0)
 			{
 				Record& r = CreateRecord(key);
-				new(&r.Value) TVal();
+				new (&r.Value) TVal();
 				return r.Value;
 			}
 
 			return _records[i].Value;
 		}
 		FORCE_INLINE bool Contains(const TKey& item) const { return FindRec(item) >= 0; }
-	private:
 
+	private:
 		FORCE_INLINE int FindRec(const TKey& key) const noexcept
 		{
 			// ensure abs value
-			int hashCode = THasher::Hash(key)& 0x7FFFFFFF;
+			int hashCode = THasher::Hash(key) & 0x7FFFFFFF;
 			int bucketIndex = mod(hashCode, (int)_buckets.Capacity);
 			for (int i = _buckets[bucketIndex]; i >= 0; i = _blocks[i].Next)
 			{
@@ -420,7 +410,7 @@ namespace vex
 			return -1;
 		}
 		struct ControlBlock
-		{ 
+		{
 			int32_t Hash = -1;
 			int32_t Next = -1;
 		};
@@ -434,10 +424,10 @@ namespace vex
 
 		const float kGrowFactor = 1.6f;
 
-		SOAJointBuffer<
-			int,			 // buckets
-			ControlBlock,   // hash and index to next, POD
-			Record> _data; // Record, trivial or not
+		SOAJointBuffer<int, // buckets
+			ControlBlock,	// hash and index to next, POD
+			Record>			// Record, trivial or not
+			_data;
 
 		RawBuffer<int32_t> _buckets;
 		RawBuffer<Record> _records;
@@ -445,9 +435,9 @@ namespace vex
 
 		inline void AssignNewBufferHandles()
 		{
-			_buckets = _data.GetBuffer<0, int32_t>();
-			_blocks = _data.GetBuffer<1, ControlBlock>();
-			_records = _data.GetBuffer<2, Record>();
+			_buckets = _data.template GetBuffer<0, int32_t>();
+			_blocks = _data.template GetBuffer<1, ControlBlock>();
+			_records = _data.template GetBuffer<2, Record>();
 
 #ifdef ECSCORE_x64
 			_fastmodM = fastmod::computeM_s32(Capacity());
@@ -465,18 +455,15 @@ namespace vex
 
 		void Grow()
 		{
-			using namespace util; 
-			int newSize = ClosestPrimeSearch((int)(_buckets.size() * kGrowFactor + 1)); 
+			using namespace util;
+			int newSize = ClosestPrimeSearch((int)(_buckets.size() * kGrowFactor + 1));
 
-			SOAJointBuffer<int, ControlBlock, Record> newData(newSize);  
-			RawBuffer<Record> newRecs = newData.GetBuffer<2, Record>();
+			SOAJointBuffer<int, ControlBlock, Record> newData(newSize);
+			RawBuffer<Record> newRecs = newData.template GetBuffer<2, Record>();
 
 			if constexpr (std::is_trivially_copyable<Record>::value)
 			{
-				std::memcpy(newRecs.First,
-					_records.First,
-					_records.Capacity * sizeof(Record)
-				);
+				std::memcpy(newRecs.First, _records.First, _records.Capacity * sizeof(Record));
 			}
 			else if constexpr (std::is_move_constructible<Record>::value)
 			{
@@ -484,28 +471,28 @@ namespace vex
 				{
 					if (_blocks[i].Hash >= 0)
 					{
-						new (&newRecs[i])Record(std::move(_records[i]));
+						new (&newRecs[i]) Record(std::move(_records[i]));
 						_records[i].~Record();
 					}
 				}
-			} 
+			}
 			else
 			{
 				for (int i = 0; i < _records.size(); ++i)
 				{
 					if (_blocks[i].Hash >= 0)
 					{
-						new (&newRecs[i])Record(_records[i]);
+						new (&newRecs[i]) Record(_records[i]);
 						_records[i].~Record();
 					}
 				}
 			}
 
-			_blocks.CopyTo(newData.GetBuffer<1, ControlBlock>(), ControlBlock{});
+			_blocks.CopyTo(newData.template GetBuffer<1, ControlBlock>(), ControlBlock{});
 
 			_data = std::move(newData);
 
-			AssignNewBufferHandles(); 
+			AssignNewBufferHandles();
 			std::fill_n(_buckets.First, _buckets.size(), -1);
 
 			for (int i = 0; i < _top; i++)
@@ -517,12 +504,12 @@ namespace vex
 					_blocks[i].Next = _buckets[bucket];
 					_buckets[bucket] = i; // old i-th element hash would not lead here
 				}
-			} 
+			}
 		}
 
 		inline Record& CreateRecord(const TKey& key)
-		{ 
-			int hashCode = THasher::Hash(key)& 0x7FFFFFFF;
+		{
+			int hashCode = THasher::Hash(key) & 0x7FFFFFFF;
 			int bucketIndex = mod(hashCode, (int)_buckets.Capacity);
 			int index = 0;
 
@@ -538,22 +525,24 @@ namespace vex
 				if (_top == _records.size())
 				{
 					Grow();
-					bucketIndex = mod(hashCode, (int)_buckets.Capacity);;
+					bucketIndex = mod(hashCode, (int)_buckets.Capacity);
+					;
 				}
 				index = _top;
-				_top++; 
+				_top++;
 			}
 
 			Record& entry = _records[index];
 			{
 				_blocks[index].Hash = hashCode;
 				_blocks[index].Next = _buckets[bucketIndex];
-				 
+
 				new (&entry.Key) TKey(key);
 				// value should be initialized in getter
 			}
 			_buckets[bucketIndex] = index;
 			return entry;
 		}
-	};; 
-}
+	};
+	;
+} // namespace vex

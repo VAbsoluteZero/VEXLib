@@ -3,6 +3,9 @@
 
 Inter/
 
+*.compexp
+*.compexp.tmp
+
 # Build results
 [Dd]ebugBuild/
 [Rr]eleaseBuild/

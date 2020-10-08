@@ -72,6 +72,45 @@
     <ClInclude Include="..\VCore\Utils\CoreTemplates.h">
       <Filter>VCore\Utils</Filter>
     </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\chrono.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\color.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\compile.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\core.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\format-inl.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\format.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\locale.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\os.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\ostream.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\posix.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\printf.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Dependencies\fmt\ranges.h">
+      <Filter>VCore\Deps</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Containers\Tuple.h">
+      <Filter>VCore\Containers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\VCore\World\ComponentBase.cpp">
@@ -85,6 +124,12 @@
     </ClCompile>
     <ClCompile Include="..\VCore\Utils\TypeInfoUtils .cpp">
       <Filter>VCore\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VCore\Dependencies\fmt\os.cc">
+      <Filter>VCore\Deps</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VCore\Dependencies\fmt\format.cc">
+      <Filter>VCore\Deps</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -150,11 +150,6 @@ namespace vex
 			CreateBuffer();
 		}
 
-		// explicit SOAJointBuffer()
-		//{
-		//	_allocated = false;
-		//}
-
 		SOAJointBuffer(const SOAJointBuffer& other) = delete;
 		SOAJointBuffer(SOAJointBuffer&& other) noexcept { *this = std::move(other); }
 		SOAJointBuffer& operator=(SOAJointBuffer&& other) noexcept

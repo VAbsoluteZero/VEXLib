@@ -1,5 +1,23 @@
 #pragma once
-
+/*
+ * MIT LICENSE
+ * Copyright (c) 2019 Vladyslav Joss
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this
+ * software and associated documentation files (the "Software"), to deal in the Software
+ * without restriction, including without limitation the rights to use, copy, modify, merge,
+ * publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons
+ * to whom the Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all copies or
+ * substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+ * BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ */
 #include "VCore/Utils/CoreTemplates.h"
 
 namespace vex::union_impl
@@ -12,8 +30,7 @@ namespace vex::union_impl
 		static constexpr auto Alignment = vex::memory::MaxAlignOf<Types...>();
 		static constexpr auto TypeCount = sizeof...(Types);
 
-		static constexpr byte kNullVal = 0xFF;
-
+		static constexpr byte kNullVal = vex::traits::kTypeIndexNone;
 
 		template <typename T>
 		static constexpr size_t Id()
@@ -22,66 +39,76 @@ namespace vex::union_impl
 			return typeIndex;
 		}
 
-		bool HasAnyValue() const { return ValueIndex != kNullVal; }
+		bool HasAnyValue() const noexcept { return _valueIndex != kNullVal; }
 
 		template <typename T>
-		bool Has() const
+		bool Has() const noexcept
 		{
 			constexpr auto typeIndex = traits::GetIndex<T, Types...>();
-			return (typeIndex == this->ValueIndex);
+			return typeIndex == _valueIndex;
 		}
 
 		template <typename T>
-		T& GetUnchecked()
+		T& GetUnchecked() noexcept
 		{
-			static_assert(traits::HasType<T, Types...>(), "Union cannot possibly contain this type");
-#if NDEBUG
-			constexpr auto typeIndex = traits::GetIndex<T, Types...>();
-			if (typeIndex != this->ValueIndex)
+			using TArg = std::remove_reference_t<T>;
+			static_assert(traits::HasType<TArg, Types...>(), "Union cannot possibly contain this type");
+#if !NDEBUG
+			constexpr auto typeIndex = traits::GetIndex<TArg, Types...>();
+			if (typeIndex != this->_valueIndex)
 				std::abort();
 #endif
-			return *(reinterpret_cast<T*>(this->Storage));
+			return *(reinterpret_cast<TArg*>(this->_storage));
 		}
 
 		template <typename T>
-		const T& GetUnchecked() const
+		const T& GetUnchecked() const noexcept
 		{
-			return this->template GetUnchecked<T>();
+			using TArg = std::remove_reference_t<T>;
+			static_assert(traits::HasType<TArg, Types...>(), "Union cannot possibly contain this type");
+#if !NDEBUG
+			constexpr auto typeIndex = traits::GetIndex<TArg, Types...>();
+			if (typeIndex != this->_valueIndex)
+				std::abort();
+#endif
+			return *(reinterpret_cast<const TArg*>(this->_storage));
 		}
 
 		template <typename T>
-		T* Find()
-		{
-			static_assert(traits::HasType<T, Types...>(), "Union cannot possibly contain this type");
-			if (!UnionBase::Has<T>())
-				return nullptr;
-
-			return (reinterpret_cast<T*>(this->Storage));
-		}
-
-		template <typename T>
-		const T* Find() const
+		T* Find() noexcept
 		{
 			static_assert(traits::HasType<T, Types...>(), "Union cannot possibly contain this type");
 			if (!UnionBase::Has<T>())
 				return nullptr;
 
-			return (reinterpret_cast<const T*>(this->Storage));
+			return (reinterpret_cast<T*>(this->_storage));
+		}
+
+		template <typename T>
+		const T* Find() const noexcept
+		{
+			static_assert(traits::HasType<T, Types...>(), "Union cannot possibly contain this type");
+			if (!UnionBase::Has<T>())
+				return nullptr;
+
+			return (reinterpret_cast<const T*>(this->_storage));
 		}
 
 		template <typename TArg>
-		inline void Match(void (*Func)(TArg&))
+		inline void Match(void (*Func)(TArg&&))
 		{
-			if (!UnionBase::Has<TArg>())
+			using TUnderlying = std::decay_t<TArg>;
+			if (!UnionBase::Has<TUnderlying>())
 				return;
-			Func((this)->template GetUnchecked<TArg>());
+
+			Func((this)->GetUnchecked<TUnderlying>());
 		}
 
 		template <typename TFunc>
 		inline void Match(TFunc Func)
 		{
 			using TraitsT = traits::FunctorTraits<decltype(Func)>;
-			using TArg0 = std::remove_cv_t<typename TraitsT::template ArgTypesT<0>>;
+			using TArg0 = std::decay_t<typename TraitsT::template ArgTypesT<0>>;
 
 			if (!UnionBase::Has<TArg0>())
 				return;
@@ -92,27 +119,32 @@ namespace vex::union_impl
 		template <typename... TFuncs>
 		inline void MultiMatch(TFuncs&&... Funcs)
 		{
-			[](...) {}((Match(Funcs), 0)...);
+			[](...) {
+			}((Match(Funcs), 0)...);
 		}
 
-		void Reset()
+		inline void Reset() noexcept
 		{
+			if (!HasAnyValue())
+				return;
 			((TSelf*)this)->DestroyValue();
-			this->ValueIndex = kNullVal;
+			this->_valueIndex = kNullVal;
 		}
 
-		byte TypeIndex() const { return ValueIndex; }
+		byte TypeIndex() const noexcept { return _valueIndex; }
+
+		operator bool() const noexcept { return HasAnyValue(); }
 
 	protected:
-		byte ValueIndex = kNullVal; // intentionally first, aware of padding
-		alignas(Alignment) byte Storage[SizeOfStorage];
+		byte _valueIndex = kNullVal; // intentionally first, aware of padding
+		alignas(Alignment) byte _storage[SizeOfStorage];
 
 		template <typename T>
-		void SetTypeIndex()
+		inline void SetTypeIndex() noexcept
 		{
 			static_assert(traits::HasType<T, Types...>(), "Union cannot possibly contain this type");
 			constexpr auto typeIndex = traits::GetIndex<T, Types...>();
-			this->ValueIndex = typeIndex;
+			this->_valueIndex = typeIndex;
 		}
 	};
 
@@ -122,71 +154,215 @@ namespace vex::union_impl
 	template <typename... Types>
 	struct UnionImpl<true, Types...> : public UnionBase<UnionImpl<true, Types...>, Types...>
 	{
-		using Base = UnionBase<Types...>;
-		friend struct UnionBase<Types...>;
+		using Base = UnionBase<UnionImpl<true, Types...>, Types...>;
+		friend struct UnionBase<UnionImpl<true, Types...>, Types...>;
 
 		constexpr UnionImpl() = default;
 		UnionImpl(const UnionImpl&) = default;
+		UnionImpl(UnionImpl&&) = default;
+
+		UnionImpl& operator=(const UnionImpl&) = default;
+		UnionImpl& operator=(UnionImpl&&) = default;
+
+		static constexpr bool IsTrivial = true;
 
 		template <typename T>
-		UnionImpl(T&& Arg)
+		UnionImpl(T&& Arg) noexcept
 		{
-			using TArg = std::remove_reference_t<T>;
-			static_assert(traits::HasType<TArg, Types...>(), "Union cannot possibly contain this type");
+			using TUnderlying = std::decay_t<T>;
+			static_assert(traits::HasType<TUnderlying, Types...>(), "Union cannot possibly contain this type");
 
-			new (this->Storage) TArg(std::forward<T>(Arg));
+			new (this->_storage) TUnderlying(std::forward<T>(Arg));
 			this->template SetTypeIndex<T>();
 		}
 
-		// #todo copy-assignment
-
-		template <typename T>
-		void Set(T&& Val)
+		template <typename T, typename TArg = T>
+		inline void Set(TArg&& Val) noexcept
 		{
-			using TArg = std::remove_reference_t<T>;
-			static_assert(traits::HasType<TArg, Types...>(), "Union cannot possibly contain this type");
+			constexpr bool kConv = std::is_convertible_v<TArg, T>; // (... || std::is_convertible_v<T, Types>);
+			static_assert(kConv || traits::HasType<TArg, Types...>(), "Union cannot possibly contain this type");
 
-			*(reinterpret_cast<TArg*>(this->Storage)) = std::forward<T>(Val);
+			if (std::is_same_v<T, TArg>)
+			{
+				*(reinterpret_cast<T*>(this->_storage)) = std::forward<std::decay_t<TArg>>(Val);
+			}
+			else // convert
+			{
+				*(reinterpret_cast<T*>(this->_storage)) = std::forward<TArg>(Val);
+			}
+			this->template SetTypeIndex<T>();
+		}
+		template <typename T>
+		inline void Set(T&& Val) noexcept
+		{
+			using TUnderlying = std::decay_t<T>;
+
+			static_assert(traits::HasType<TUnderlying, Types...>(), "Union cannot possibly contain this type");
+
+			*(reinterpret_cast<TUnderlying*>(this->_storage)) = std::forward<T>(Val);
 			this->template SetTypeIndex<T>();
 		}
 
 		//  reutrn default value if not there
 		template <typename T>
-		T GetValueOrDefault(T defaultVal) const
+		inline T GetValueOrDefault(T defaultVal) const noexcept
 		{
 			static_assert(traits::HasType<T, Types...>(), "Union cannot possibly contain this type");
 
 			if (!this->template Has<T>())
 				return defaultVal;
 
-			return *(reinterpret_cast<const T*>(this->Storage));
+			return *(reinterpret_cast<const T*>(this->_storage));
 		}
 
 		// ok for primitives lets be like map and just construct the val if it is not there
 		template <typename T>
-		T& Get()
+		inline T& Get() noexcept
 		{
 			static_assert(traits::HasType<T, Types...>(), "Union cannot possibly contain this type");
 			if (!this->template Has<T>())
 				this->Set<T>(T());
 
-			return *(reinterpret_cast<T*>(this->Storage));
+			return *(reinterpret_cast<T*>(this->_storage));
 		}
 
 	private:
 		// not calling dtor since storage restricted to PODs
-		void DestroyValue() {}
+		inline void DestroyValue() noexcept {}
 	};
 
 
 	template <typename... Types>
 	struct UnionImpl<false, Types...> : public UnionBase<UnionImpl<false, Types...>, Types...>
 	{
-		using Base = UnionBase<Types...>;
-		friend struct UnionBase<Types...>;
+		using Base = UnionBase<UnionImpl<false, Types...>, Types...>;
+		friend struct UnionBase<UnionImpl<false, Types...>, Types...>;
 
 		using TSelf = UnionImpl<false, Types...>;
 		constexpr UnionImpl() = default;
+
+		static constexpr bool IsTrivial = false;
+
+	public:
+		UnionImpl(const UnionImpl& other)
+		{ //
+			static_assert((... & std::is_move_constructible_v<Types>), "Union contains non-movable type");
+			if (other.HasAnyValue())
+			{
+				InvokeCopyCTOR(this, &other);
+			}
+			this->_valueIndex = other._valueIndex;
+		}
+
+		UnionImpl& operator=(const UnionImpl& other)
+		{
+			if (this != &other)
+			{
+				if (!other.HasAnyValue())
+				{
+					this->Reset();
+					return *this;
+				}
+				if (this->_valueIndex == other._valueIndex)
+					InvokeCopyAssignment(&other);
+				else
+				{
+					this->Reset();
+					this->_valueIndex = other._valueIndex;
+					InvokeCopyCTOR(other);
+				};
+			}
+
+			return *this;
+		}
+
+		UnionImpl& operator=(UnionImpl&& other)
+		{
+			if (this != &other)
+			{
+				if (!other.HasAnyValue())
+				{
+					this->Reset();
+					return *this;
+				}
+
+				if (this->_valueIndex == other._valueIndex)
+					InvokeMoveAssignment(&other);
+				else
+				{
+					this->Reset();
+					this->_valueIndex = other._valueIndex;
+					InvokeMoveCTOR(&other);
+				}
+			}
+
+			return *this;
+		}
+		template <typename T>
+		UnionImpl(T&& arg)
+		{
+			using TUnderlying = std::decay_t<T>;
+
+			if constexpr (std::is_same_v<TUnderlying, TSelf>)
+			{
+				if (arg.HasAnyValue())
+				{
+					this->_valueIndex = arg._valueIndex;
+					InvokeMoveCTOR(&arg);
+					arg.Reset();
+				}
+			}
+			else
+			{
+				static_assert(traits::HasType<TUnderlying, Types...>(), "Union cannot possibly contain this type");
+				new (this->_storage) TUnderlying(std::forward<T>(arg));
+				this->template SetTypeIndex<TUnderlying>();
+			};
+		}
+
+		~UnionImpl() { this->Reset(); }
+
+		template <typename TargetType, typename TArg = TargetType>
+		void Set(TArg&& Val)
+		{
+			constexpr bool kConv = std::is_convertible_v<TArg, TargetType>; // (... || std::is_convertible_v<T, Types>);
+			static_assert(kConv || traits::HasType<TargetType, Types...>(), // ? #todo better check
+				"Union cannot possibly contain this type");
+
+			if constexpr (std::is_same_v<TargetType, TArg>)
+			{
+				if (this->template Has<TargetType>())
+					*(reinterpret_cast<TargetType*>(this->_storage)) = std::forward<TargetType>(Val);
+				else
+				{
+					if (this->HasAnyValue())
+						this->Reset();
+					new (this->_storage) TargetType(std::forward<TargetType>(Val));
+				}
+			}
+			else // convert
+			{
+				if (this->template Has<TargetType>())
+					*(reinterpret_cast<TargetType*>(this->_storage)) = std::forward<TArg>(Val);
+				else
+				{
+					if (this->HasAnyValue())
+						this->Reset();
+					new (this->_storage) TargetType(std::forward<TArg>(Val));
+				}
+			}
+			this->template SetTypeIndex<TargetType>();
+		}
+
+		template <typename T>
+		void SetDefault()
+		{
+			using TArg = std::decay_t<T>;
+			if (this->template HasAnyValue())
+				this->Reset();
+			new (this->_storage) TArg();
+			this->template SetTypeIndex<TArg>();
+		}
 
 	private:
 		// table of ctor/dtor's to be resolved based on type index
@@ -202,73 +378,65 @@ namespace vex::union_impl
 		template <typename T>
 		static void CopyConstructor(TSelf* self, const TSelf* other)
 		{ //
-			std::cout << ">> INVOKED : "
-					  << " [ CopyConstructor ] " << typeid(T).name() << "\n";
-			new (self->Storage) T(other->template GetUnchecked<T>());
+			new (self->_storage) T(other->template GetUnchecked<T>());
 		}
 
 		template <typename T>
 		static void MoveConstructor(TSelf* self, TSelf* other)
 		{ //
-			std::cout << ">> INVOKED : "
-					  << " [ MoveConstructor ] " << typeid(T).name() << "\n";
-			new (self->Storage) T(std::move(other->template GetUnchecked<T>()));
+			new (self->_storage) T(std::move(other->template GetUnchecked<T>()));
 			other->Reset();
 		}
 
 		template <typename T>
 		static void CopyAssignment(TSelf* self, const TSelf* other)
 		{ //
-			std::cout << ">> INVOKED : "
-					  << " [ == ] " << typeid(T).name() << "\n";
 			self->template GetUnchecked<T>() = other->template GetUnchecked<T>();
 		}
 
 		template <typename T>
 		static void MoveAssignment(TSelf* self, TSelf* other)
 		{ //
-			std::cout << ">> INVOKED : "
-					  << " [ MoveAssignment ] " << typeid(T).name() << "\n";
 			self->template GetUnchecked<T>() = std::move(other->template GetUnchecked<T>());
 		}
 
 		template <typename T>
 		static void Destructor(TSelf* self)
 		{ //
-			std::cout << ">> INVOKED : "
-					  << " [ Destructor ] " << typeid(T).name() << "\n";
-			auto* value = reinterpret_cast<T*>(self->Storage);
+			auto* value = reinterpret_cast<T*>(self->_storage);
 			value->~T();
 		}
 
 		template <typename T>
 		static constexpr MethodTable BuildMethodTable()
 		{ //
-			auto Table = MethodTable();
+			auto table = MethodTable();
 
-			Table.Destructor = &TSelf::Destructor<T>;
+			table.Destructor = &TSelf::Destructor<T>;
 
-			Table.MoveConstruct = &TSelf::MoveConstructor<T>;
-			Table.CopyConstruct = &TSelf::CopyConstructor<T>;
+			table.MoveConstruct = &TSelf::MoveConstructor<T>;
+			table.CopyConstruct = &TSelf::CopyConstructor<T>;
 
-			Table.CopyAssignment = &TSelf::CopyAssignment<T>;
-			Table.MoveAssignment = &TSelf::MoveAssignment<T>;
+			table.CopyAssignment = &TSelf::CopyAssignment<T>;
+			table.MoveAssignment = &TSelf::MoveAssignment<T>;
 
-			return Table;
+			return table;
 		}
 
 		// maps type to method table
 		static inline MethodTable gTables[sizeof...(Types)] = {BuildMethodTable<Types>()...};
 
 
-		MethodTable* Resolve()
+		MethodTable* Resolve() noexcept
 		{
-			u32 Index = this->ValueIndex;
-			return &gTables[Index];
+			assert(Base::HasAnyValue());
+			u32 index = this->_valueIndex;
+			return &gTables[index];
 		}
 
-		void DestroyValue()
+		void DestroyValue() noexcept
 		{
+			// this ptr is source of type info
 			MethodTable* table = this->Resolve();
 			table->Destructor(this);
 		}
@@ -295,93 +463,18 @@ namespace vex::union_impl
 		void InvokeMoveAssignment(TSelf* other)
 		{
 			// other is source of type info
-			MethodTable* table = other->Resolve(this);
+			MethodTable* table = other->Resolve();
 			table->MoveAssignment(this, other);
-		}
-
-	public:
-		template <typename T>
-		UnionImpl(T&& arg)
-		{
-			static_assert(traits::HasType<T, Types...>(), "Union cannot possibly contain this type");
-			new (this->Storage) T(std::forward<T>(arg));
-			this->template SetTypeIndex<T>();
-		}
-		UnionImpl(const UnionImpl& other)
-		{ //
-			if (other.HasAnyValue())
-			{
-				InvokeCopyCTOR(&other);
-			}
-			this->ValueIndex = other->ValueIndex;
-		}
-
-		UnionImpl(UnionImpl&& other)
-		{ //
-			if (other.HasAnyValue())
-			{
-				this->ValueIndex = other->ValueIndex;
-				MoveConstructor(&other);
-			}
-			other.Reset();
-		}
-
-		UnionImpl& operator=(const UnionImpl& other)
-		{
-			if (this != &other)
-			{
-				InvokeCopyAssignment(&other);
-				this->ValueIndex = other->ValueIndex;
-			}
-
-			return *this;
-		}
-
-		UnionImpl& operator=(UnionImpl&& other)
-		{
-			if (this != &other)
-			{
-				InvokeMoveAssignment(&other);
-				this->ValueIndex = other->ValueIndex;
-			}
-
-			return *this;
-		}
-
-		~UnionImpl() { Reset(); }
-
-		void Reset()
-		{
-			if (this->HasAnyValue())
-				DestroyValue();
-
-			this->ValueIndex = 0;
-		}
-
-		template <typename T>
-		void Set(T&& Val)
-		{
-			using TArg = std::remove_reference_t<T>;
-			static_assert(traits::HasType<TArg, Types...>(), "Union cannot possibly contain this type");
-
-			if (this->HasAnyValue())
-				Reset();
-
-			new (this->Storage) TArg(std::forward<T>(Val));
-			SetTypeIndex<TArg>();
-		}
-
-		template <typename T>
-		void SetDefault()
-		{
-			using TArg = std::remove_reference_t<T>;
-			if (this->template HasAnyValue())
-				Reset();
-			new (this->Storage) TArg();
-			SetTypeIndex<TArg>();
 		}
 	};
 } // namespace vex::union_impl
 
-template <typename... Types>
-using Union = vex::union_impl::UnionImpl<vex::traits::AreAllTrivial<Types...>(), Types...>;
+namespace vex
+{
+	template <typename... Types>
+	using Union = vex::union_impl::UnionImpl<vex::traits::AreAllTrivial<Types...>(), Types...>;
+
+	// todo write proper option that is efficient.
+	template <typename T>
+	using Option = vex::union_impl::UnionImpl<std::is_trivial_v<T>, T>;
+} // namespace vex

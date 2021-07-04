@@ -26,6 +26,9 @@
 #include <type_traits>
 #include <vector>
 
+// #todo
+// reduce size of RawBuffer &  Buffer::Block
+
 namespace vex
 {
 	inline constexpr int roundUp(int n, int m) { return ((n + m - 1) / m) * m; }
@@ -77,7 +80,7 @@ namespace vex
 	// It does free() the memory region itslef.
 	// use only as inner container
 	template <typename... TTypes>
-	class SOAJointBuffer
+	class SOAOneBuffer
 	{
 		static const size_t kAlignment = 32;
 
@@ -110,7 +113,7 @@ namespace vex
 		{
 			static_assert(arrayId < ArrayCount, "accessing an element outside of bounds");
 			static_assert(std::is_same<NthTypeOf<arrayId, TTypes...>, T>::value,
-				"SOAJoint::Add<__I__, __TYPE__>(elem) -> invalid type when accessing element of SOA");
+				" ::Add<__I__, __TYPE__>(elem) -> invalid type when accessing element of SOA");
 
 			auto& v = std::get<arrayId>(_blocks);
 			new (v.template Start<T>() + i) T(val);
@@ -120,7 +123,7 @@ namespace vex
 		{
 			static_assert(arrayId < ArrayCount, "accessing an element outside of bounds");
 			static_assert(std::is_same<NthTypeOf<arrayId, TTypes...>, T>::value,
-				"SOAJoint::EmplaceBack<__I__, __TYPE__>(args) -> invalid type when accessing element of SOA");
+				" ::EmplaceBack<__I__, __TYPE__>(args) -> invalid type when accessing element of SOA");
 
 			auto& v = std::get<arrayId>(_blocks);
 			new (v.template Start<T>() + i) T(std::forward<TArgs>(args)...);
@@ -131,15 +134,15 @@ namespace vex
 		{
 			static_assert(arrayId < ArrayCount, "accessing an element outside of bounds");
 			static_assert(std::is_same<NthTypeOf<arrayId, TTypes...>, T>::value,
-				"SOAJoint::GetView<__I__, __TYPE__>(void) -> invalid type when accessing sub array of SOA");
+				" ::GetView<__I__, __TYPE__>(void) -> invalid type when accessing sub array of SOA");
 
 			const Block& v = std::get<arrayId>(_blocks);
 			return RawBuffer<T>(v.template Start<T>(), v.Capacity);
 		}
 
-		SOAJointBuffer() = delete;
+		SOAOneBuffer() = delete;
 
-		explicit SOAJointBuffer(size_t capacity) noexcept
+		explicit SOAOneBuffer(size_t capacity) noexcept
 		{
 			assert(capacity > 0);
 			//"0 cap makes no sense except you want to break something"
@@ -150,9 +153,9 @@ namespace vex
 			CreateBuffer();
 		}
 
-		SOAJointBuffer(const SOAJointBuffer& other) = delete;
-		SOAJointBuffer(SOAJointBuffer&& other) noexcept { *this = std::move(other); }
-		SOAJointBuffer& operator=(SOAJointBuffer&& other) noexcept
+		SOAOneBuffer(const SOAOneBuffer& other) = delete;
+		SOAOneBuffer(SOAOneBuffer&& other) noexcept { *this = std::move(other); }
+		SOAOneBuffer& operator=(SOAOneBuffer&& other) noexcept
 		{
 			if (this != &other)
 			{
@@ -170,14 +173,14 @@ namespace vex
 			return *this;
 		}
 
-		~SOAJointBuffer()
+		~SOAOneBuffer()
 		{
 			// Destroy<0, TTypes...>();
 			free(_mem);
 		}
 
 	private:
-		explicit SOAJointBuffer(const std::array<size_t, ArrayCount>& capacities)
+		explicit SOAOneBuffer(const std::array<size_t, ArrayCount>& capacities)
 		{
 			assert(capacities.size() == ArrayCount); //"initializer_list size and count of arrays should always match"
 			for (int i = 0; i < _blocks.size(); ++i)

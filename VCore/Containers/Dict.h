@@ -176,7 +176,7 @@ namespace vex
 				other._top = 0;
 				other._freeCount = 0;
 				other._free = 0;
-				other._data = SOAJointBuffer<int, ControlBlock, Record>(util::ClosestPrimeSearch(3));
+				other._data = SOAOneBuffer<int, ControlBlock, Record>(util::ClosestPrimeSearch(3));
 
 				other.AssignNewBufferHandles();
 				std::fill_n(other._buckets.First, other._buckets.size(), -1);
@@ -425,7 +425,7 @@ namespace vex
 
 		const float kGrowFactor = 1.6f;
 
-		SOAJointBuffer<int, // buckets
+		SOAOneBuffer<int, // buckets
 			ControlBlock,	// hash and index to next, POD
 			Record>			// Record, trivial or not
 			_data;
@@ -459,7 +459,7 @@ namespace vex
 			using namespace util;
 			int32_t newSize = ClosestPrimeSearch((int)(_buckets.size() * kGrowFactor + 1));
 
-			SOAJointBuffer<int, ControlBlock, Record> newData(newSize);
+			SOAOneBuffer<int, ControlBlock, Record> newData(newSize);
 			RawBuffer<Record> newRecs = newData.template GetBuffer<2, Record>();
 
 			if constexpr (std::is_trivially_copyable<Record>::value)

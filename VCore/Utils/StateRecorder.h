@@ -82,6 +82,6 @@ namespace vex
 		};
 
 	public:
-		Ring<N, Snapshot> _snapshots;
+		StaticRing<N, Snapshot> _snapshots;
 	};
 } // namespace vex

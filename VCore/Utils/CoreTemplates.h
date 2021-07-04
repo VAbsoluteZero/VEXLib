@@ -175,6 +175,20 @@ namespace vex
 		{
 		};
 	} // namespace impl
+	static constexpr impl::vxSentinel kSqEnd = impl::vxSentinel{};
+
+	template <class T, bool Add = true>
+	struct AddConst;
+	template <class T>
+	struct AddConst<T, true>
+	{
+		using type = const T;
+	};
+	template <class T>
+	struct AddConst<T, false>
+	{
+		using type = T;
+	};
 
 	template <std::size_t index, typename Cur, typename... Args>
 	struct GetTypeByIndex
@@ -190,8 +204,6 @@ namespace vex
 	template <int Start, int End>
 	struct CRange
 	{
-		static constexpr const impl::vxSentinel kSqEnd = impl::vxSentinel{};
-
 		static constexpr int32_t _s = Start;
 
 		static constexpr int32_t Signum(int32_t v) { return (0 < v) - (v < 0); }
@@ -251,5 +263,5 @@ namespace vex
 		impl::vxSentinel end() const noexcept { return kSqEnd; };
 	};
 
-	Range operator"" _times(unsigned long long x) { return Range((int)x); }
+	inline Range operator"" _times(unsigned long long x) { return Range((int)x); }
 } // namespace vex

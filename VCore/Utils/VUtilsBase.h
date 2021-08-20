@@ -1,6 +1,6 @@
 #pragma once
 
-#include <VLang/Misc/TTraits.h>
+#include <VCore/Utils/TTraits.h>
  
 namespace vex 
 {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <VLang/Misc/VMath.h>
+#include <VCore/Utils/VMath.h>
 
 namespace vex
 {

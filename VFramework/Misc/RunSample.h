@@ -1,7 +1,11 @@
 #pragma once
-#include <string.h>
 
+#include <string.h> 
 #include <functional>
+
+/*
+ * Primitive setup to be able to run arbitrary test code associated with string key 
+ */
 
 namespace vex
 {
@@ -27,6 +31,7 @@ namespace vex
 		int _count = 0;
 	};
 } // namespace vp
+
 namespace Vex_Private
 {
 	struct RunCmd_Anon
@@ -38,6 +43,7 @@ namespace Vex_Private
 		}
 	};
 }; // namespace Vex_Private
+
 #define VexPrivate_DECLARE_TESTSAMPLE(cmdKey, code)                                     \
 	namespace Vex_Private                                                               \
 	{                                                                                   \
@@ -52,5 +58,4 @@ namespace Vex_Private
 	};
 
 #define VEX_TESTSAMPLE(cmdKey, code) VexPrivate_DECLARE_TESTSAMPLE(cmdKey, code);
-
 #define VEX_TESTSAMPLE_INLINE static inline Vex_Private::RunCmd_Anon vpint_COMBINE(sample_anon_, __LINE__) =

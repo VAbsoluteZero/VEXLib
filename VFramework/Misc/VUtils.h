@@ -1,11 +1,11 @@
 #pragma once
 
 #include <string>
-#include <VLang/Misc/TTraits.h>
+#include <VCore/Utils/TTraits.h>
 
-#include <VLang/Misc/VUtilsBase.h>
+#include <VCore/Utils/VUtilsBase.h>
 
-#include <VLang/Misc/Color.h> 
+#include <VFramework/Misc/Color.h> 
 #include <spdlog/fmt/fmt.h> 
  
 

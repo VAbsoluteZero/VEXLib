@@ -3,9 +3,9 @@
 
 #include <spdlog/spdlog.h>
 //
-#include <VLang/Misc/TTraits.h>
-#include <VLang/Misc/VMath.h>
-#include <VLang/Misc/VUtils.h>
+#include <VCore/Utils/TTraits.h>
+#include <VCore/Utils/VMath.h>
+#include <VFramework/Misc/VUtils.h>
 #include <assert.h>
 
 #include <memory>

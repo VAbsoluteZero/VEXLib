@@ -8,7 +8,7 @@
 
 namespace vex
 {
-	typedef int16_t tIDType;
+	using tIDType = int16_t;
 
 	struct EntityHandle
 	{

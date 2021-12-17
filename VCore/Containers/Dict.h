@@ -47,7 +47,7 @@ namespace vex
 	template <typename TKey>
 	struct hasher
 	{
-		inline static int Hash(const TKey& key)
+		inline static int32_t Hash(const TKey& key)
 		{
 			// '-val' hash range is reserved for
 			// empty records (effectively taking one bit from .Hash field)
@@ -57,13 +57,13 @@ namespace vex
 	template <>
 	struct hasher<int>
 	{
-		inline static int Hash(const int& key) { return key; }
+		inline static int32_t Hash(const int& key) { return key; }
 	};
 
 	template <>
 	struct hasher<std::string>
 	{
-		inline static int Hash(const std::string& key)
+		inline static int32_t Hash(const std::string& key)
 		{
 			return murmur::MurmurHash3_x86_32(key.data(), (int)key.size());
 		}
@@ -77,20 +77,21 @@ namespace vex
 	 * Loosely based on the .net (C#) dictionary implementation,
 	 * optimized for fast insert/iteration/lookup.
 	 * It preforms 1.5x to 10x faster than std::unordered_map in certain situations.
+	 * It is about 2x to 8x faster than  UE's TMap .
 	 * All around it is much faster to fill and iterate through it
 	 * regardless of element size due to cache friendliness.
-	 * Lookup of an element takes about the same time.
+	 * Lookup for an element takes about the same time.
 	 *
 	 * Data storage itself is a flat SOA-like structure, all logical parts of the dictionary (buckets, recs..)
 	 * are allocated inside same buffer/memory region.
-	 * There are some checks to ensure that POD-like data is being processed as such.
+	 * There are some checks to ensure that POD-like data is being processed as such (e.g. memcpy'd).
 	 * This container does not require neither Key nor Val to have default constructor.
 	 *
 	 * NOTE (1): this container does NOT resemble unordered_map in a way it is allocated -
-	 * it is using flat memory buffer for all elements (instead of just storing pointers and
+	 * it is using Flat memory buffer for all elements (instead of just storing pointers and
 	 * allocating storage for elements later), so if you are using HUGE (lets say
 	 * more than 2048 bytes) structures and lots of them - it could be better
-	 * to use std version instead. Otherwises there could be spikes on alloc/realloc or free.
+	 * to use std version instead. Otherwise there could be spikes on alloc/realloc or free.
 	 * Basically allocating 2MB+ upfront could be expensive.
 	 */
 
@@ -107,8 +108,8 @@ namespace vex
 			TVal Value;
 		};
 
-		inline int Size() const noexcept { return _top - _freeCount; }
-		inline int Capacity() const noexcept { return (int)_buckets.Capacity; }
+		inline int32_t Size() const noexcept { return _top - _freeCount; }
+		inline int32_t Capacity() const noexcept { return (int)_buckets.Capacity; }
 
 		explicit Dict(uint32_t capacity = 7) : _data(util::ClosestPrimeSearch(capacity))
 		{
@@ -140,7 +141,7 @@ namespace vex
 			}
 			else
 			{
-				for (int i = 0; i < otherRecs.size(); ++i)
+				for (int32_t i = 0; i < otherRecs.size(); ++i)
 				{
 					if (otherBlocks[i].Hash >= 0)
 					{
@@ -175,7 +176,7 @@ namespace vex
 				other._top = 0;
 				other._freeCount = 0;
 				other._free = 0;
-				other._data = SOAJointBuffer<int, ControlBlock, Record>(util::ClosestPrimeSearch(3));
+				other._data = SOAOneBuffer<int, ControlBlock, Record>(util::ClosestPrimeSearch(3));
 
 				other.AssignNewBufferHandles();
 				std::fill_n(other._buckets.First, other._buckets.size(), -1);
@@ -190,7 +191,7 @@ namespace vex
 		{
 			if constexpr (!std::is_trivially_destructible<Record>::value)
 			{
-				for (int i = 0; i < _blocks.size(); ++i)
+				for (int32_t i = 0; i < _blocks.size(); ++i)
 				{
 					if (_blocks[i].Hash >= 0)
 						_records[i].~Record();
@@ -204,7 +205,7 @@ namespace vex
 		{
 			if (Size() > 0)
 			{
-				for (int i = 0; i < Size(); ++i)
+				for (int32_t i = 0; i < Size(); ++i)
 				{
 					if (_blocks[i].Hash > 0)
 						return &_records[i].Value;
@@ -217,7 +218,7 @@ namespace vex
 		template <class... Types>
 		inline void Emplace(const TKey& key, Types&&... arguments)
 		{
-			int i = FindRec(key);
+			int32_t i = FindRec(key);
 			if (i >= 0)
 			{
 				_records[i].Value.~TVal();
@@ -229,11 +230,11 @@ namespace vex
 				new (&r.Value) TVal(std::forward<Types>(arguments)...);
 			}
 		}
-		static inline volatile int dbg;
+		static inline volatile int32_t dbg;
 		template <class... Types>
 		inline TVal& EmplaceAndGet(const TKey& key, Types&&... arguments)
 		{
-			int i = FindRec(key);
+			int32_t i = FindRec(key);
 			if (i >= 0)
 			{
 				_records[i].Value.~TVal();
@@ -252,22 +253,22 @@ namespace vex
 		inline typename std::enable_if_t<std::is_default_constructible<T>::value, TVal> ValueOrDefault(
 			const TKey& key) const
 		{
-			int ind = FindRec(key);
+			int32_t ind = FindRec(key);
 			return ind >= 0 ? _records[ind].Value : TVal();
 		}
 
 		inline TVal* TryGet(const TKey& key) const noexcept
 		{
-			int ind = FindRec(key);
+			int32_t ind = FindRec(key);
 			return ind >= 0 ? &_records[ind].Value : nullptr;
 		}
 
 		bool Remove(const TKey& key) noexcept
 		{
-			int hashCode = THasher::Hash(key) & 0x7FFFFFFF;
-			int bucket = mod(hashCode, _buckets.size());
-			int previous = -1;
-			for (int i = _buckets[bucket]; i >= 0; previous = i, i = _blocks[i].Next)
+			int32_t hashCode = THasher::Hash(key) & 0x7FFFFFFF;
+			int32_t bucket = mod(hashCode, _buckets.size());
+			int32_t previous = -1;
+			for (int32_t i = _buckets[bucket]; i >= 0; previous = i, i = _blocks[i].Next)
 			{
 				if (_blocks[i].Hash == hashCode && (_records[i].Key == key))
 				{
@@ -315,7 +316,7 @@ namespace vex
 			}
 			else
 			{
-				for (int i = 0; i < _blocks.size(); ++i)
+				for (int32_t i = 0; i < _blocks.size(); ++i)
 				{
 					if (_blocks[i].Hash >= 0)
 						_records[i].~Record();
@@ -332,7 +333,7 @@ namespace vex
 		{
 			FORCE_INLINE bool Advance()
 			{
-				int count = _map.Size();
+				int32_t count = _map.Size();
 				while (_index < (count - 1))
 				{
 					_index++;
@@ -370,7 +371,7 @@ namespace vex
 		private:
 			DIterator(const Dict& owner) : _map(owner) {}
 			const Dict& _map;
-			int _index = 0;
+			int32_t _index = 0;
 			;
 
 			friend class Dict;
@@ -382,7 +383,7 @@ namespace vex
 		template <typename T = TVal>
 		inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> operator[](const TKey& key)
 		{
-			int i = FindRec(key);
+			int32_t i = FindRec(key);
 
 			if (i < 0)
 			{
@@ -396,12 +397,12 @@ namespace vex
 		FORCE_INLINE bool Contains(const TKey& item) const { return FindRec(item) >= 0; }
 
 	private:
-		FORCE_INLINE int FindRec(const TKey& key) const noexcept
+		FORCE_INLINE int32_t FindRec(const TKey& key) const noexcept
 		{
 			// ensure abs value
-			int hashCode = THasher::Hash(key) & 0x7FFFFFFF;
-			int bucketIndex = mod(hashCode, (int)_buckets.Capacity);
-			for (int i = _buckets[bucketIndex]; i >= 0; i = _blocks[i].Next)
+			int32_t hashCode = THasher::Hash(key) & 0x7FFFFFFF;
+			int32_t bucketIndex = mod(hashCode, (int)_buckets.Capacity);
+			for (int32_t i = _buckets[bucketIndex]; i >= 0; i = _blocks[i].Next)
 			{
 				if (_blocks[i].Hash == hashCode)
 					if (_records[i].Key == key)
@@ -424,7 +425,7 @@ namespace vex
 
 		const float kGrowFactor = 1.6f;
 
-		SOAJointBuffer<int, // buckets
+		SOAOneBuffer<int, // buckets
 			ControlBlock,	// hash and index to next, POD
 			Record>			// Record, trivial or not
 			_data;
@@ -444,7 +445,7 @@ namespace vex
 #endif
 		}
 
-		FORCE_INLINE int mod(int a, int b) const noexcept
+		FORCE_INLINE int32_t mod(int32_t a, int32_t b) const noexcept
 		{
 #ifdef ECSCORE_x64
 			return fastmod::fastmod_s32(a, _fastmodM, b);
@@ -456,9 +457,9 @@ namespace vex
 		void Grow()
 		{
 			using namespace util;
-			int newSize = ClosestPrimeSearch((int)(_buckets.size() * kGrowFactor + 1));
+			int32_t newSize = ClosestPrimeSearch((int)(_buckets.size() * kGrowFactor + 1));
 
-			SOAJointBuffer<int, ControlBlock, Record> newData(newSize);
+			SOAOneBuffer<int, ControlBlock, Record> newData(newSize);
 			RawBuffer<Record> newRecs = newData.template GetBuffer<2, Record>();
 
 			if constexpr (std::is_trivially_copyable<Record>::value)
@@ -467,7 +468,7 @@ namespace vex
 			}
 			else if constexpr (std::is_move_constructible<Record>::value)
 			{
-				for (int i = 0; i < _records.size(); ++i)
+				for (int32_t i = 0; i < _records.size(); ++i)
 				{
 					if (_blocks[i].Hash >= 0)
 					{
@@ -478,7 +479,7 @@ namespace vex
 			}
 			else
 			{
-				for (int i = 0; i < _records.size(); ++i)
+				for (int32_t i = 0; i < _records.size(); ++i)
 				{
 					if (_blocks[i].Hash >= 0)
 					{
@@ -495,11 +496,11 @@ namespace vex
 			AssignNewBufferHandles();
 			std::fill_n(_buckets.First, _buckets.size(), -1);
 
-			for (int i = 0; i < _top; i++)
+			for (int32_t i = 0; i < _top; i++)
 			{
 				if (_blocks[i].Hash >= 0)
 				{
-					int bucket = mod(_blocks[i].Hash, newSize); // == hash % size
+					int32_t bucket = mod(_blocks[i].Hash, newSize); // == hash % size
 
 					_blocks[i].Next = _buckets[bucket];
 					_buckets[bucket] = i; // old i-th element hash would not lead here
@@ -509,9 +510,9 @@ namespace vex
 
 		inline Record& CreateRecord(const TKey& key)
 		{
-			int hashCode = THasher::Hash(key) & 0x7FFFFFFF;
-			int bucketIndex = mod(hashCode, (int)_buckets.Capacity);
-			int index = 0;
+			int32_t hashCode = THasher::Hash(key) & 0x7FFFFFFF;
+			int32_t bucketIndex = mod(hashCode, (int)_buckets.Capacity);
+			int32_t index = 0;
 
 			if (_freeCount > 0)
 			{

@@ -31,10 +31,7 @@ namespace vex
 			if (_snapshots.Empty())
 				return false;
 
-			Snapshot shot(_snapshots.Pop());
-
-			std::vector<tTypeID> copied;
-			copied.reserve(32);
+			Snapshot shot(_snapshots.Pop()); 
 
 			for (auto& kv : shot.Storages)
 			{
@@ -82,6 +79,6 @@ namespace vex
 		};
 
 	public:
-		Ring<N, Snapshot> _snapshots;
+		StaticRing<N, Snapshot> _snapshots;
 	};
 } // namespace vex

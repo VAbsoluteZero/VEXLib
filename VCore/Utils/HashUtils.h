@@ -7,7 +7,7 @@
 #include <random>
 
 #if INTPTR_MAX == INT64_MAX
-#define ECSCORE_x64
+#define VEXCORE_x64
 #elif INTPTR_MAX == INT32_MAX
 #define ECSCORE_x32
 #else

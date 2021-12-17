@@ -19,28 +19,18 @@
  */
 #include <VCore/World/World.h>
 
-using namespace vex;
-
-bool vex::World::RegisterArchetype(const std::string& id, tfArchetypeBuilder builder, bool replace)
-{
-	if (!replace && _archetypes.Contains(id))
-		return false;
-
-	_archetypes.Emplace(id, builder);
-
-	return true;
-}
+using namespace vex; 
 
 EntityHandle vex::World::InstantiateArchetype(const std::string& id)
 {
-	if (!_archetypes.Contains(id))
+	if (!Archetypes.Contains(id))
 		return EntityHandle{};
 
 	// #todo fixme
 	EntityHandle newOne = CreateBlank("-of archetype-");
 	// Entity& ent = Entities[newOne.ID];
 
-	bool created = _archetypes[id](*this, newOne);
+	bool created = Archetypes[id](*this, newOne);
 	if (!created)
 	{
 		Destroy(newOne);
@@ -67,17 +57,17 @@ bool vex::World::Destroy(EntityHandle handle)
 	entRef.ComponentMask = 0;
 
 	Entities[handle.ID].Handle = {};
-	_freeStack.push_back(handle.ID);
+	FreeEntitySlotsStack.push_back(handle.ID);
 
 	return true;
 }
 vex::EntityHandle vex::World::CreateBlank()
 {
 	int pos = (int)Entities.size();
-	if (_freeStack.size() > 0)
+	if (FreeEntitySlotsStack.size() > 0)
 	{
-		pos = _freeStack.back();
-		_freeStack.pop_back();
+		pos = FreeEntitySlotsStack.back();
+		FreeEntitySlotsStack.pop_back();
 	}
 	else
 	{

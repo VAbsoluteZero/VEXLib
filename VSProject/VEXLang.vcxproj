@@ -18,34 +18,53 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\VLang\Misc\Color.h" />
+    <ClInclude Include="..\VLang\Misc\RunSample.h" />
+    <ClInclude Include="..\VLang\Misc\TTraits.h" />
+    <ClInclude Include="..\VLang\Misc\VMath.h" />
+    <ClInclude Include="..\VLang\Misc\VUtils.h" />
+    <ClInclude Include="..\VLang\Misc\VUtilsBase.h" />
+    <ClInclude Include="..\VLang\VEXBase.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\VLang\Main.cpp" />
+    <ClCompile Include="..\VLang\Misc\RunSample.cpp" />
+    <ClCompile Include="..\VLang\TestSamples\TrivialSamples.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="VEXLib.vcxproj">
+      <Project>{d31cd30b-dcb9-4ce7-8504-0bf18b24806c}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
-    <ProjectGuid>{D31CD30B-DCB9-4CE7-8504-0BF18B24806C}</ProjectGuid>
+    <ProjectGuid>{D31CD30B-FCB9-4CE7-8504-0BF18B24826A}</ProjectGuid>
     <RootNamespace>VEXLib</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v142</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -99,7 +118,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(ProjectDir)..\Source\;$(ProjectDir)..\..\External\;$(ProjectDir)..\VEXLib\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -113,7 +132,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(ProjectDir)..\Source\;$(ProjectDir)..\..\External\;$(ProjectDir)..\VEXLib\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -129,7 +148,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(ProjectDir)..\Source\;$(ProjectDir)..\..\External\;$(ProjectDir)..\VEXLib\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -147,7 +166,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(ProjectDir)..</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(ProjectDir)..\Source\;$(ProjectDir)..\..\External\;$(ProjectDir)..\VEXLib\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
@@ -157,46 +176,6 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClInclude Include="..\VCore\Containers\Dict.h" />
-    <ClInclude Include="..\VCore\Containers\Ring.h" />
-    <ClInclude Include="..\VCore\Containers\SOAJoint.h" />
-    <ClInclude Include="..\VCore\Containers\Tuple.h" />
-    <ClInclude Include="..\VCore\Containers\Union.h" />
-    <ClInclude Include="..\VCore\Dependencies\fastmod.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\chrono.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\color.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\compile.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\core.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\format-inl.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\format.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\locale.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\os.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\ostream.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\posix.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\printf.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\ranges.h" />
-    <ClInclude Include="..\VCore\Dependencies\MurmurHash3.h" />
-    <ClInclude Include="..\VCore\Systems\ISystem.h" />
-    <ClInclude Include="..\VCore\Systems\SystemManager.h" />
-    <ClInclude Include="..\VCore\Utils\CoreTemplates.h" />
-    <ClInclude Include="..\VCore\Utils\HashUtils.h" />
-    <ClInclude Include="..\VCore\Utils\StateRecorder.h" />
-    <ClInclude Include="..\VCore\Utils\TypeInfoUtils.h" />
-    <ClInclude Include="..\VCore\World\ComponentBase.h" />
-    <ClInclude Include="..\VCore\World\Entity.h" />
-    <ClInclude Include="..\VCore\World\IGlobal.h" />
-    <ClInclude Include="..\VCore\World\Storage.h" />
-    <ClInclude Include="..\VCore\World\World.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\VCore\Dependencies\fmt\format.cc" />
-    <ClCompile Include="..\VCore\Dependencies\fmt\os.cc" />
-    <ClCompile Include="..\VCore\Utils\TypeInfoUtils .cpp" />
-    <ClCompile Include="..\VCore\World\ComponentBase.cpp" />
-    <ClCompile Include="..\VCore\World\Storage.cpp" />
-    <ClCompile Include="..\VCore\World\World.cpp" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

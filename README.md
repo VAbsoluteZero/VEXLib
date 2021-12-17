@@ -1,2 +1,2 @@
 # VEXLib
-Tiny framework for game development using ECS-like architecture and built with rewind mechanic in mind. 
+Collection of types (mainly containers) and utilities, that are either faster to compile or/and run, and easier to use. Created for my own fun.

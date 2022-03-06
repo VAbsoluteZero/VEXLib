@@ -6,40 +6,15 @@
 #ifndef _MURMURHASH3_H_
 #define _MURMURHASH3_H_
 
-//-----------------------------------------------------------------------------
-// Platform-specific functions and macros
-
-// Microsoft Visual Studio
-
-#if defined(_MSC_VER) && (_MSC_VER < 1600)
-
-typedef unsigned char uint8_t;
-typedef unsigned int uint32_t;
-typedef unsigned __int64 uint64_t;
-
-// Other compilers
-
-#else // defined(_MSC_VER)
-
 #include <stdint.h>
 
-#endif // !defined(_MSC_VER)
+#include <stdlib.h>
 
-//-----------------------------------------------------------------------------
-
-#include "MurmurHash3.h"
-
-//-----------------------------------------------------------------------------
-// Platform-specific functions and macros
-
-// Microsoft Visual Studio
 namespace murmur
 {
 #if defined(_MSC_VER)
 
 #define FORCE_INLINE __forceinline
-
-#include <stdlib.h>
 
 #define ROTL32(x, y) _rotl(x, y)
 #define ROTL64(x, y) _rotl64(x, y)
@@ -433,6 +408,14 @@ namespace murmur
 		((uint64_t*)out)[1] = h2;
 	}
 
+    //-----------------------------------------------------------------------------
+
+	inline uint64_t MurmurHash3_x64_64(const void* key, int len, uint32_t seed)
+    {
+        uint64_t buf[2];
+        MurmurHash3_x64_128(key, len, seed, &buf);
+        return (uint64_t)buf[0];
+    }
 
 	//-----------------------------------------------------------------------------
 } // namespace murmur

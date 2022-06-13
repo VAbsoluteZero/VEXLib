@@ -42,8 +42,7 @@ namespace vex
         ValType& peekUnchecked() const { return *(peek()); }
 
         auto pop() -> Union<ValType, Error>
-        {
-            i32 old_len = len;
+        { 
             ValType* top_val = peek();
 
             if (nullptr == top_val)

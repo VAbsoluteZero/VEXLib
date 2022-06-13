@@ -19,6 +19,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "VCore/Utils/CoreTemplates.h"
+#include "VCore/Utils/VUtilsBase.h"
 
 
 namespace vex::union_impl
@@ -121,7 +122,7 @@ namespace vex::union_impl
         }
 
         template <typename TArg>
-        inline void match(void (*Func)(TArg&&))
+        inline void matchOne(void (*Func)(TArg&&))
         {
             using TUnderlying = std::decay_t<TArg>;
             if (!UnionBase::has<TUnderlying>())
@@ -131,7 +132,7 @@ namespace vex::union_impl
         }
 
         template <typename TFunc>
-        inline constexpr void match(TFunc&& Func)
+        inline constexpr void matchOne(TFunc&& Func)
         {
             using TraitsT = traits::FunctorTraits<std::decay_t<decltype(Func)>>;
             using TArg0 = std::decay_t<typename TraitsT::template ArgTypesT<0>>;
@@ -143,11 +144,11 @@ namespace vex::union_impl
         }
 
         template <typename... TFuncs>
-        inline constexpr void multiMatch(TFuncs&&... Funcs)
+        inline constexpr void match(TFuncs&&... Funcs)
         {
             [](...)
             {
-            }((match(Funcs), 0)...);
+            }((matchOne(Funcs), 0)...);
         }
 
         // helper macro for unrolling switch in 'visit'

@@ -5,228 +5,321 @@
  */
 
 #include <assert.h>
-
-#include "VCore/Utils/CoreTemplates.h"
+ 
+#include <VCore/Containers/Union.h>
+#include <VCore/Utils/VUtilsBase.h>
+#include <VCore/Utils/CoreTemplates.h>
 
 namespace vex
 {
-	/*
-		Simple Static Ring Buffer, meant mainly for PODs.
-		FillForward == true means that buffer will grow from 0 to Size, otherwise Size to 0.
-		This means that FillForward is better for insert, !FillForward - for iteration
-		(you can still iterate unordered even with FillForward).
-	*/
-	template <class T, i32 Size, bool FillForward = false>
-	class StaticRing
-	{
-	public:
-		static constexpr i32 GrowDirection = FillForward ? 1 : -1;
-		static_assert(Size > 2, "Size must be >= 2, otherwise ring just doesnt make any sense.");
+    /*
+        Simple Static Ring Buffer, meant mainly for PODs.
+        fill_forward == true means that buffer will grow from 0 to k_capacity, otherwise k_capacity to 0.
+        This means that fill_forward is better for insert, !fill_forward - for iteration
+        (you can still iterate unordered even with fill_forward).
+    */
+    template <class T, i32 k_capacity, bool fill_forward = false>
+    class StaticRing
+    {
+        inline auto wrapAroundIndexIfNeeded(i32 i) const -> i32
+        {
+            i = i % k_capacity;
+            if (i < 0)
+            {
+                i = k_capacity + i;
+            }
+            return i;
+        }
+        inline auto growIndex(i32 i) const -> i32
+        {
+            i32 v = i + k_grow_dir;
+            if constexpr (fill_forward)
+            {
+                if (v >= k_capacity)
+                    return 0;
+            }
+            else
+            {
+                if (v < 0)
+                    return k_capacity - 1;
+            }
+            return v;
+        }
+        inline auto shrinkIndex(i32 i) const -> i32
+        {
+            i32 v = i - k_grow_dir;
+            if constexpr (!fill_forward)
+            {
+                if (v >= k_capacity)
+                    return 0;
+            }
+            else
+            {
+                if (v < 0)
+                    return k_capacity - 1;
+            }
+            return v;
+        }
 
-		inline auto WrapAroundIndexIfNeeded(i32 i) const -> i32
-		{
-			i = i % Size;
-			if (i < 0)
-			{
-				i = Size - abs(i);
-			}
-			else if (i >= Size)
-			{
-				i = (i - Size);
-			}
-			return i;
-		}
-		inline auto TailIndex() -> i32 const
-		{
-			if (_first <= 0)
-			{
-				return _first;
-			}
-			i32 i = _first + GrowDirection * (_count - 1);
-			return WrapAroundIndexIfNeeded(i);
-		}
+    public:
+        using ValueType = T;
+        static constexpr bool k_fill_forward = fill_forward; 
+        static constexpr i32 k_grow_dir = fill_forward ? 1 : -1;
 
-		inline auto Full() const -> bool { return Size == _count; }
-		inline auto Empty() const -> bool { return 0 == _count; }
-		inline auto Count() const -> i32 { return _count; }
+        static_assert(k_capacity > 2, //
+            "k_capacity must be >= 2, otherwise ring just doesnt make any sense.");
+ 
+        inline auto is_full() const -> bool { return k_capacity == num_elements; }
+        inline auto is_empty() const -> bool { return 0 == num_elements; }
+        inline auto size() const -> i32 { return num_elements; }
+        inline auto capacity() const -> i32 { return k_capacity; }
 
-		template <typename TFwd = T>
-		inline T& Put(TFwd&& newItem)
-		{
-			_first += GrowDirection;
-			_first = WrapAroundIndexIfNeeded(_first);
-			T* curItem = item(_first);
-			if (_count < Size)
-			{
-				_count++;
-				new (curItem) T(std::forward<TFwd>(newItem));
-			}
-			else
-			{
-				*(curItem) = std::forward<TFwd>(newItem);
-			}
-			return *(curItem);
-		}
+        inline auto clear() -> void
+        {
+            while (!is_empty())
+            {
+                popDiscard();
+            }
+            checkAlways_(0 == size());
+        }
 
-		// #todo enable if for PODs only
-		inline void AddUninitialized(i32 number)
-		{
-			_count += number;
-			_count = _count >= Size ? Size : _count;
-		}
+        template <typename TFwd>
+        inline T& push(TFwd&& newItem)
+        {
+            first_ind = growIndex(first_ind); 
+            T* curItem = item(first_ind);
+            if (num_elements < k_capacity)
+            {
+                num_elements++;
+                new (curItem) T(std::forward<TFwd>(newItem));
+            }
+            else
+            {
+                *curItem = std::forward<TFwd>(newItem);
+            }
+            return *curItem;
+        }
 
-		inline T&& Pop()
-		{
-			assert(_count > 0);
+        inline void addUninitialized(i32 number)
+        {
+            static_assert(std::is_trivial_v<T>, "only for trivial POD types");
+            num_elements += number;
+            num_elements = num_elements >= k_capacity ? k_capacity : num_elements;
+        }
+        inline void addDefaulted(i32 number)
+        {
+            static_assert(std::is_default_constructible_v<T>, "incompatible with type");
+            for (i32 i = 0; i < number; ++i)
+                put(T{});
+        }
 
-			i32 i = _first;
-			--_count;
+        [[nodiscard]] inline auto popUnchecked() -> T
+        {
+            checkAlways_(num_elements > 0);
 
-			if (_first++ >= Size)
-			{
-				_first = 0;
-			}
+            auto top_item = item(first_ind);
+            auto tmp = std::move(*top_item);
+            top_item->~T();
 
-			auto Tmp = std::move(*item(i));
-			(item(i))->~T();
-			return Tmp;
-		}
+            --num_elements;
+            first_ind = shrinkIndex(first_ind);
 
-		inline void PopDiscard()
-		{
-			if (_count > 0)
-			{
-				i32 i = _first;
-				--_count;
-				++_first;
-				if (_first >= Size)
-				{
-					_first = 0;
-				}
-				(item(i))->~T();
-			}
-		}
+            return tmp;
+        }
+        [[nodiscard]] inline auto pop() -> vex::Option<T>
+        {
+            if (num_elements <= 0)
+                return {};
 
-		inline T& Peek()
-		{
-			assert(_count > 0);
-			return *(item(_first));
-		}
+            auto top_item = item(first_ind);
+            Option<T> out_val{std::move(*top_item)};
+            top_item->~T();
 
-		StaticRing(){};
+            --num_elements;
+            first_ind -= k_grow_dir;
+            first_ind = wrapAroundIndexIfNeeded(first_ind);
 
-		// todo
-		StaticRing(const StaticRing& other) = delete;
-		StaticRing(StaticRing&& other) = delete;
-		~StaticRing()
-		{
-			static_assert(Size > 1, "invalid ring size");
-			if constexpr (!std::is_trivially_destructible_v<T>)
-			{
-				while (!Empty())
-				{
-					PopDiscard();
-				}
-			}
-		}
+            return out_val;
+        }
 
-		T& AtAbsIndexUnchecked(i32 i)
-		{
-			assert(i >= 0 && i < Size);
-			return dataTyped[i];
-		}
+        inline void popDiscard()
+        {
+            T* top_item = peek();
+            if (nullptr != top_item)
+            {
+                top_item->~T();
+                --num_elements;
+                first_ind -= k_grow_dir;
+                first_ind = wrapAroundIndexIfNeeded(first_ind);
+            }
+        }
 
-		T& At(i32 i)
-		{
-			i32 rel = ToRawIndex(i);
-			assert(rel >= 0 && rel < Size);
-			return dataTyped[rel];
-		}
-		const T& At(i32 i) const
-		{
-			i32 rel = ToRawIndex(i);
-			assert(rel >= 0 && rel < Size);
-			return dataTyped[rel];
-		}
+        inline auto peek() -> T*
+        {
+            if (num_elements <= 0)
+                return nullptr;
+            return item(first_ind);
+        }
+        inline auto peek() const -> const T*
+        {
+            if (num_elements <= 0)
+                return nullptr;
+            return item(first_ind);
+        }
+        inline auto peekUnchecked() -> T& { return *(item(first_ind)); }
 
-		// do not use this type directly, it is meant for ranged for exclusively
-		template <bool Const>
-		struct SqIterator
-		{
-			using RingType = typename AddConst<StaticRing<T, Size, FillForward>, Const>::type;
-			// as it is used in It == End by range-for loop, it is esentialy stop condition
-			friend auto operator==(SqIterator lhs, impl::vxSentinel rhs) { return lhs.IsDone(); }
-			friend auto operator==(impl::vxSentinel lhs, SqIterator rhs) { return rhs == lhs; }
-			friend auto operator!=(SqIterator lhs, impl::vxSentinel rhs) { return !(lhs == rhs); }
-			friend auto operator!=(impl::vxSentinel lhs, SqIterator rhs) { return !(lhs == rhs); }
-			bool IsDone() const { return HeadOffset >= Ring.Count(); }
+        StaticRing(){};
 
-			inline decltype(auto) operator*() const { return Ring.At(HeadOffset); }
-			inline decltype(auto) operator++()
-			{
-				HeadOffset += 1;
-				return *this;
-			}
+        template <typename... Args>
+        StaticRing(Args&&... elems)
+        {
+            (this->push(std::forward<Args>(elems)), ...);
+        }
 
-			i32 HeadOffset = 0;
-			RingType& Ring;
+        StaticRing(StaticRing& other) : StaticRing{const_cast<StaticRing const&>(other)} {}
+        StaticRing(const StaticRing& other) : num_elements(0), first_ind(0)
+        {
+            if (&other == this)
+                return;
 
-			SqIterator(const SqIterator&) = default;
-			SqIterator(RingType& ring) : Ring(ring) {}
-		};
-		auto begin() noexcept { return SqIterator<false>{*this}; };
-		auto end() const noexcept { return kSqEnd; };
-		auto begin() const noexcept { return SqIterator<true>{*this}; };
-		// do not use this type directly, it is meant for ranged for exclusively
-		template <bool Const>
-		struct RevIterator
-		{
-			using RingType = typename AddConst<StaticRing<T, Size>, Const>::type;
-			// as it is used in It == End by range-for loop, it is esentialy stop condition
-			friend auto operator==(RevIterator lhs, impl::vxSentinel rhs) { return lhs.IsDone(); }
-			friend auto operator==(impl::vxSentinel lhs, RevIterator rhs) { return rhs == lhs; }
-			friend auto operator!=(RevIterator lhs, impl::vxSentinel rhs) { return !(lhs == rhs); }
-			friend auto operator!=(impl::vxSentinel lhs, RevIterator rhs) { return !(lhs == rhs); }
-			bool IsDone() const { return TailOffset >= Ring.Count(); }
+            deepCopyFrom(other);
+        }
+        StaticRing& operator=(const StaticRing& other)
+        {
+            if (&other == this)
+                return *this;
+            deepCopyFrom(other);
+            return *this;
+        }
 
-			inline decltype(auto) operator*() const { return Ring.At(Ring.Count() - TailOffset - 1); }
-			inline decltype(auto) operator++()
-			{
-				TailOffset += 1;
-				return *this;
-			}
+        StaticRing(StaticRing&& other) = delete;
+        ~StaticRing()
+        {
+            if constexpr (!std::is_trivially_destructible_v<T>)
+            {
+                clear();
+            }
+        }
 
-			i32 TailOffset = 0;
-			RingType& Ring;
-			RevIterator(const RevIterator&) = default;
-			RevIterator(RingType& ring) : Ring(ring) {}
-		};
-		auto rbegin() noexcept { return RevIterator<false>{*this}; };
-		auto rend() const noexcept { return kSqEnd; };
-		auto rbegin() const noexcept { return RevIterator<true>{*this}; };
+        T& at(i32 i)
+        {
+            i32 rel = toRawIndex(i);
+            checkAlways_(rel >= 0 && rel < k_capacity);
+            return data_typed[rel];
+        }
+        const T& at(i32 i) const
+        {
+            i32 rel = toRawIndex(i);
+            checkAlways_(rel >= 0 && rel < k_capacity);
+            return data_typed[rel];
+        }
 
-	private:
-		static constexpr auto kAlign = alignof(T) < 8 ? 8 : alignof(T);
-		union
-		{
-			alignas(kAlign) byte dataBytes[Size * sizeof(T)];
-			alignas(kAlign) T dataTyped[Size];
-		};
+        const T* rawDataUnsafe() const { return data_typed; }
 
-		inline auto ToRawIndex(i32 i) const -> i32
-		{ //
-			i32 rel = _first + i * GrowDirection;
-			return WrapAroundIndexIfNeeded(rel);
-		}
+        // do not use this type directly, it is meant for ranged for exclusively
+        template <bool Const>
+        struct SqIterator
+        {
+            using RingType = typename AddConst<StaticRing<T, k_capacity, fill_forward>, Const>::type;
+            // as it is used in It == End by range-for loop, it is esentialy stop condition
+            friend auto operator==(SqIterator lhs, impl::vxSentinel rhs) { return lhs.IsDone(); }
+            friend auto operator==(impl::vxSentinel lhs, SqIterator rhs) { return rhs == lhs; }
+            friend auto operator!=(SqIterator lhs, impl::vxSentinel rhs) { return !(lhs == rhs); }
+            friend auto operator!=(impl::vxSentinel lhs, SqIterator rhs) { return !(lhs == rhs); }
+            bool IsDone() const { return head_offset >= ring.num_elements; }
 
+            inline decltype(auto) operator*() const { return ring.at(head_offset); }
+            inline decltype(auto) operator++()
+            {
+                head_offset += 1;
+                return *this;
+            }
 
-		inline T* item(i32 i) { return &dataTyped[i]; }
+            RingType& ring;
+            i32 head_offset = 0;
 
-		i32 _count = 0;
-		i32 _first = -1; // uninitialized
-	};
+            SqIterator(const SqIterator&) = default;
+            SqIterator(RingType& ring) : ring(ring) {}
+        };
+        auto begin() noexcept { return SqIterator<false>{*this}; };
+        auto end() const noexcept { return k_seq_end; };
+        auto begin() const noexcept { return SqIterator<true>{*this}; };
+        // do not use this type directly, it is meant for ranged for exclusively
+        template <bool Const>
+        struct RevIterator
+        {
+            using RingType = typename AddConst<StaticRing<T, k_capacity, fill_forward>, Const>::type;
+            // as it is used in It == End by range-for loop, it is esentialy stop condition
+            friend auto operator==(RevIterator lhs, impl::vxSentinel rhs) { return lhs.IsDone(); }
+            friend auto operator==(impl::vxSentinel lhs, RevIterator rhs) { return rhs == lhs; }
+            friend auto operator!=(RevIterator lhs, impl::vxSentinel rhs) { return !(lhs == rhs); }
+            friend auto operator!=(impl::vxSentinel lhs, RevIterator rhs) { return !(lhs == rhs); }
+            bool IsDone() const { return tail_offset >= ring.num_elements; }
 
-	using Inst = StaticRing<i32, 4, true>;
+            inline decltype(auto) operator*() const { return ring.at(ring.num_elements - tail_offset - 1); }
+            inline decltype(auto) operator++()
+            {
+                tail_offset += 1;
+                return *this;
+            }
 
-	static inline Inst TestInst = {};
+            RingType& ring;
+            i32 tail_offset = 0;
+
+            RevIterator(const RevIterator&) = default;
+            RevIterator(RingType& ring) : ring(ring) {}
+        };
+        auto rbegin() noexcept { return RevIterator<false>{*this}; };
+        auto rend() const noexcept { return k_seq_end; };
+        auto rbegin() const noexcept { return RevIterator<true>{*this}; };
+
+    private:
+        static constexpr auto k_align = alignof(T) < 8 ? 8 : alignof(T);
+        union
+        {
+            alignas(k_align) byte data_bytes[k_capacity * sizeof(T)];
+            alignas(k_align) T data_typed[k_capacity];
+        };
+
+        inline auto toRawIndex(i32 i) const -> i32
+        { //
+            i32 rel = first_ind - i * k_grow_dir;
+            return wrapAroundIndexIfNeeded(rel);
+        }
+
+        inline void deepCopyFrom(const StaticRing& other)
+        {
+            clear();
+            if (other.is_full())
+            {
+                this->num_elements = other.num_elements;
+                this->first_ind = other.first_ind;
+                for (i32 i = 0; i < num_elements; ++i)
+                {
+                    new (item(i)) T(*(other.item(i)));
+                }
+            }
+            else
+            {
+                this->num_elements = other.num_elements;
+                this->first_ind = other.first_ind;
+                auto cur = first_ind;
+                for (i32 i = num_elements; i > 0; --i)
+                {
+                    new (item(cur)) T(*(other.item(cur)));
+                    cur -= k_grow_dir;
+                    cur = wrapAroundIndexIfNeeded(cur);
+                }
+            }
+        } 
+
+        inline T* item(i32 i) { return &data_typed[i]; }
+        inline const T* item(i32 i) const { return &data_typed[i]; }
+
+        i32 num_elements = 0;
+        // index of a 'first' element in ring/stack (meaning last added)
+        // initialized with invalid index, that would be valid after first 'put'
+        i32 first_ind = fill_forward ? -1 : k_capacity;
+    };
+
 } // namespace vex

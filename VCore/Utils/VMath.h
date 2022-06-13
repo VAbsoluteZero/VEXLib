@@ -26,23 +26,23 @@ namespace vex
 {
 	// so there is no need to include giant <algorithm> just for max
 	template<typename T>
-	constexpr T Max(T a, T b)
+	constexpr T max(T a, T b)
 	{ 
 		return a > b ? a : b;
 	}
 	template<typename T>
-	constexpr T Min(T a, T b)
+	constexpr T min(T a, T b)
 	{
 		return a > b ? b : a;
 	}
-	template<> // it is not actually any faster than {cond ? x : y} on pc
-	constexpr int Max(int a, int b)
-	{
-		int s = (a > b);
-		return s * a + !s * b;
-	}
+	//template<> // it is not actually any faster than {cond ? x : y} on pc
+	//constexpr int max(int a, int b)
+	//{
+	//	int s = (a > b);
+	//	return s * a + !s * b;
+	//}
 
-	constexpr float ClampOne(float v)
+	constexpr float clampOne(float v)
 	{
 		v = v < 0 ? 0 : v;
 		return v > 1 ? 1 : v;

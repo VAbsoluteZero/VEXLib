@@ -19,6 +19,9 @@
     <Filter Include="VCore\Deps">
       <UniqueIdentifier>{7f2660f6-b159-4242-9f95-bc8ac483b851}</UniqueIdentifier>
     </Filter>
+    <Filter Include="VCore\Memory">
+      <UniqueIdentifier>{a9a31a92-72f1-43ca-a671-7ff2a3449a94}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\VCore\Containers\Dict.h">
@@ -111,6 +114,21 @@
     <ClInclude Include="..\VCore\Containers\Tuple.h">
       <Filter>VCore\Containers</Filter>
     </ClInclude>
+    <ClInclude Include="..\VCore\Memory\Memory.h">
+      <Filter>VCore\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Utils\TTraits.h">
+      <Filter>VCore\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Utils\VMath.h">
+      <Filter>VCore\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Utils\VUtilsBase.h">
+      <Filter>VCore\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\VCore\Containers\Stack.h">
+      <Filter>VCore\Containers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\VCore\World\ComponentBase.cpp">
@@ -131,5 +149,17 @@
     <ClCompile Include="..\VCore\Dependencies\fmt\format.cc">
       <Filter>VCore\Deps</Filter>
     </ClCompile>
+    <ClCompile Include="..\VCore\Memory\Memory.cpp">
+      <Filter>VCore\Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="..\VCore\Utils\VUtilsBase.cpp">
+      <Filter>VCore\Utils</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\.clang-format" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\VCore\Extras\vcore.natvis" />
   </ItemGroup>
 </Project>

@@ -20,11 +20,12 @@
  */
 #include <VCore/Containers/SOAJoint.h>
 #include <VCore/Utils/HashUtils.h>
+#include <VCore/Utils/VUtilsBase.h>
 
 #include <optional>
 #include <vector>
 
-#ifdef ECSCORE_x64
+#ifdef VEXCORE_x64
 #include <VCore/Dependencies/fastmod.h>
 #endif
 
@@ -40,510 +41,589 @@
 #endif
 #endif // ! FORCE_INLINE
 
-// # TODO: add support for ALLOCATORS
-// # TODO: implement shrink/realloc
 namespace vex
 {
-	template <typename TKey>
-	struct hasher
-	{
-		inline static int32_t Hash(const TKey& key)
-		{
-			// '-val' hash range is reserved for
-			// empty records (effectively taking one bit from .Hash field)
-			return (int)std::hash<TKey>{}(key);
-		}
-	};
-	template <>
-	struct hasher<int>
-	{
-		inline static int32_t Hash(const int& key) { return key; }
-	};
+    template <typename TKey>
+    struct hasher
+    {
+        inline static i32 hash(const TKey& key)
+        {
+            // '-val' hash range is reserved for
+            // empty records (effectively taking one bit from .hash field)
+            return (int)std::hash<TKey>{}(key);
+        }
+    };
+    template <>
+    struct hasher<int>
+    {
+        inline static i32 hash(const int& key) { return key; }
+    };
 
-	template <>
-	struct hasher<std::string>
-	{
-		inline static int32_t Hash(const std::string& key)
-		{
-			return murmur::MurmurHash3_x86_32(key.data(), (int)key.size());
-		}
-	};
-	struct DSentinel
-	{
-	};
-	static constexpr const DSentinel kEndIteratorSentinel{};
-	/*
-	 * Simple and readable Hashtable/Map/Dictionary implementation.
-	 * Loosely based on the .net (C#) dictionary implementation,
-	 * optimized for fast insert/iteration/lookup.
-	 * It preforms 1.5x to 10x faster than std::unordered_map in certain situations.
-	 * It is about 2x to 8x faster than  UE's TMap .
-	 * All around it is much faster to fill and iterate through it
-	 * regardless of element size due to cache friendliness.
-	 * Lookup for an element takes about the same time.
-	 *
-	 * Data storage itself is a flat SOA-like structure, all logical parts of the dictionary (buckets, recs..)
-	 * are allocated inside same buffer/memory region.
-	 * There are some checks to ensure that POD-like data is being processed as such (e.g. memcpy'd).
-	 * This container does not require neither Key nor Val to have default constructor.
-	 *
-	 * NOTE (1): this container does NOT resemble unordered_map in a way it is allocated -
-	 * it is using Flat memory buffer for all elements (instead of just storing pointers and
-	 * allocating storage for elements later), so if you are using HUGE (lets say
-	 * more than 2048 bytes) structures and lots of them - it could be better
-	 * to use std version instead. Otherwise there could be spikes on alloc/realloc or free.
-	 * Basically allocating 2MB+ upfront could be expensive.
-	 */
+    template <>
+    struct hasher<std::string>
+    {
+        inline static i32 hash(const std::string& key)
+        {
+            return murmur::MurmurHash3_x86_32(key.data(), (int)key.size());
+        }
+    };
+    struct DSentinel
+    {
+    };
+    static constexpr const DSentinel kEndIteratorSentinel{};
+    /*
+     * Simple and readable Hashtable/Map/Dictionary implementation.
+     * Loosely based on the .net (C#) dictionary implementation,
+     * optimized for fast insert/iteration/lookup. Uses linear probing scheme.
+     * It preforms 1.5x to 10x faster than std::unordered_map in certain situations.
+     * It is about 2x to 8x faster than  UnrealEngine's TMap in Development config.
+     * All around it is much faster to fill and iterate through it
+     * regardless of element size due to cache friendliness.
+     * Lookup for an element takes about the same time.
+     *
+     * Data storage itself is a flat SOA-like structure, all logical parts of the dictionary (buckets, recs..)
+     * are allocated inside same buffer/memory region.
+     * There are some checks to ensure that POD-like data is being processed as such (e.g. memcpy'd).
+     * This container does not require neither Key nor Val to have default constructor.
+     *
+     * NOTE (1): this container does NOT resemble unordered_map in a way it is allocated -
+     * it is using Flat memory buffer for all elements (instead of just storing pointers and
+     * allocating storage for elements later), so if you are using HUGE (lets say
+     * more than 2048 bytes) structures and lots of them - it could be better
+     * to use std version instead OR consider supplying different allocator.
+     * Otherwise there could be spikes on alloc/realloc or free.
+     * Basically allocating 2MB+ upfront could be expensive.
+     */
 
-	// #todo partially specialize for strings
-	template <typename TKey, typename TVal, typename THasher = hasher<TKey>>
-	class Dict
-	{
-	public:
-		typedef TKey KeyType;
-		typedef TVal ValueType;
-		struct Record
-		{
-			TKey Key;
-			TVal Value;
-		};
+    template <typename TBuckets, typename TCtrlBlock, typename TRecord>
+    class DictAllocator
+    {
+        static const size_t alignment = vex::maxAlignOf<TBuckets, TCtrlBlock, TRecord>();
 
-		inline int32_t Size() const noexcept { return _top - _freeCount; }
-		inline int32_t Capacity() const noexcept { return (int)_buckets.Capacity; }
+    public:
+        DictAllocator() = delete;
 
-		explicit Dict(uint32_t capacity = 7) : _data(util::ClosestPrimeSearch(capacity))
-		{
-			AssignNewBufferHandles();
+        explicit DictAllocator(vex::Allocator in_alloc, u32 in_cap) noexcept : allocator(in_alloc)
+        {
+            checkAlways_(in_cap > 0);
 
-			std::fill_n(_buckets.First, _buckets.size(), -1);
-			auto b = ControlBlock{-1, -1};
-			std::fill_n(_blocks.First, _blocks.size(), b);
-		}
+            capacity = in_cap;
+            constexpr size_t size_list[3] = {sizeof(TBuckets), sizeof(TCtrlBlock), sizeof(TRecord)};
 
-		Dict(const Dict& other) : _data(other.Capacity())
-		{
-			AssignNewBufferHandles();
+            u32 total_size = 0;
+            for (int i = 0; i < 3; ++i)
+            {
+                total_size += size_list[i] * capacity + alignment * 2;
+            }
 
-			_top = other._top;
-			_free = other._free;
-			_freeCount = other._freeCount;
+            // #todo write guard block
+            auto memory_region = (u8*)in_alloc.alloc(total_size, alignof(TBuckets));
+            buckets = reinterpret_cast<TBuckets*>(memory_region);
+            checkAlways_(buckets);
 
-			RawBuffer<int32_t> otherBuckets = other._data.template GetBuffer<0, int32_t>();
-			RawBuffer<ControlBlock> otherBlocks = other._data.template GetBuffer<1, ControlBlock>();
-			RawBuffer<Record> otherRecs = other._data.template GetBuffer<2, Record>();
+            // 'buckets' should be at the start and considered owning ptr
+            u32 new_top = sizeof(TBuckets) * in_cap;
 
-			otherBuckets.CopyTo(_buckets, {});
-			otherBlocks.CopyTo(_blocks);
+            vex::BumpAllocator bumper{memory_region, total_size};
+            bumper.top = new_top;
 
-			if constexpr (std::is_trivially_copyable<Record>::value)
-			{
-				std::memcpy(_records.First, otherRecs.First, otherRecs.Capacity * sizeof(Record));
-			}
-			else
-			{
-				for (int32_t i = 0; i < otherRecs.size(); ++i)
-				{
-					if (otherBlocks[i].Hash >= 0)
-					{
-						new (&_records[i]) Record(otherRecs[i]);
-					}
-				}
-			}
-		}
+            auto bumper_handle = bumper.makeAllocatorHandle();
+            this->blocks = vexAllocTyped<TCtrlBlock>(bumper_handle, in_cap);
+            this->recs = vexAllocTyped<TRecord>(bumper_handle, in_cap);
+            bool invalid = (recs == nullptr) || (blocks == nullptr) || (buckets == nullptr); 
 
-		Dict& operator=(const Dict& other)
-		{
-			if (this != &other)
-			{
-				Dict tmp(other);
-				*this = std::move(tmp);
-			}
+            checkAlways(!invalid, " bug: buffer could not contain all of the arrays "); 
+        }
 
-			return *this;
-		}
+        DictAllocator(const DictAllocator& other) = delete;
+        DictAllocator(DictAllocator&& other) noexcept { *this = std::move(other); }
+        DictAllocator& operator=(DictAllocator&& other) noexcept
+        {
+            if (this != &other)
+            {
+                allocator.dealloc(buckets);
+                capacity = other.capacity;
 
-		Dict& operator=(Dict&& other)
-		{
-			if (this != &other)
-			{
-				_data = std::move(other._data);
+                buckets = other.buckets;
+                blocks = other.blocks;
+                recs = other.recs;
+                allocator = other.allocator;
 
-				_top = other._top;
-				_free = other._free;
-				_freeCount = other._freeCount;
-				AssignNewBufferHandles();
+                other.buckets = nullptr;
+                other.blocks = nullptr;
+                other.recs = nullptr;
+            }
 
-				other._top = 0;
-				other._freeCount = 0;
-				other._free = 0;
-				other._data = SOAOneBuffer<int, ControlBlock, Record>(util::ClosestPrimeSearch(3));
+            return *this;
+        }
 
-				other.AssignNewBufferHandles();
-				std::fill_n(other._buckets.First, other._buckets.size(), -1);
-				auto b = ControlBlock{-1, -1};
-				std::fill_n(other._blocks.First, other._blocks.size(), b);
-			}
+        ~DictAllocator()
+        {
+            if (buckets)
+                allocator.dealloc(buckets);
+        }
 
-			return *this;
-		}
+        auto bucketsBuffer() const { return RawBuffer<TBuckets>{buckets, capacity}; }
+        auto blocksBuffer() const { return RawBuffer<TCtrlBlock>{blocks, capacity}; }
+        auto recordsBuffer() const { return RawBuffer<TRecord>{recs, capacity}; }
 
-		~Dict()
-		{
-			if constexpr (!std::is_trivially_destructible<Record>::value)
-			{
-				for (int32_t i = 0; i < _blocks.size(); ++i)
-				{
-					if (_blocks[i].Hash >= 0)
-						_records[i].~Record();
-					_blocks[i].Hash = -1;
-				}
-			}
-		}
+        // this pointer is OWNING and should be free'd
+        vex::Allocator allocator;
+        TBuckets* buckets = nullptr;
+        TCtrlBlock* blocks = nullptr;
+        TRecord* recs = nullptr;
+        u32 capacity = 0;
+    };
 
-		template <typename T = TVal>
-		inline typename std::enable_if_t<std::is_default_constructible<T>::value, T*> Any()
-		{
-			if (Size() > 0)
-			{
-				for (int32_t i = 0; i < Size(); ++i)
-				{
-					if (_blocks[i].Hash > 0)
-						return &_records[i].Value;
-				}
-			}
+    // #todo partially specialize for strings
+    // #TODO: implement shrink/realloc
+    template <typename TKey, typename TVal, typename THasher = hasher<TKey>>
+    class alignas(64) Dict
+    {
+    public:
+        typedef TKey KeyType;
+        typedef TVal ValueType;
+        struct Record
+        {
+            TKey key;
+            TVal value;
+        };
+        struct ControlBlock
+        {
+            i32 hash = -1;
+            i32 next = -1;
+        };
 
-			return nullptr;
-		}
+        using CombinedStorage = DictAllocator<i32, ControlBlock, Record>;
 
-		template <class... Types>
-		inline void Emplace(const TKey& key, Types&&... arguments)
-		{
-			int32_t i = FindRec(key);
-			if (i >= 0)
-			{
-				_records[i].Value.~TVal();
-				new (&_records[i].Value) TVal(std::forward<Types>(arguments)...);
-			}
-			else
-			{
-				Record& r = CreateRecord(key);
-				new (&r.Value) TVal(std::forward<Types>(arguments)...);
-			}
-		}
-		static inline volatile int32_t dbg;
-		template <class... Types>
-		inline TVal& EmplaceAndGet(const TKey& key, Types&&... arguments)
-		{
-			int32_t i = FindRec(key);
-			if (i >= 0)
-			{
-				_records[i].Value.~TVal();
-				new (&_records[i].Value) TVal(std::forward<Types>(arguments)...);
-				return _records[i].Value;
-			}
-			else
-			{
-				Record& r = CreateRecord(key);
-				new (&r.Value) TVal(std::forward<Types>(arguments)...);
-				return r.Value;
-			}
-		}
+        FORCE_INLINE i32 size() const noexcept { return top_idx - free_count; }
+        FORCE_INLINE u32 capacity() const noexcept { return data.capacity; }
 
-		template <typename T = TVal>
-		inline typename std::enable_if_t<std::is_default_constructible<T>::value, TVal> ValueOrDefault(
-			const TKey& key) const
-		{
-			int32_t ind = FindRec(key);
-			return ind >= 0 ? _records[ind].Value : TVal();
-		}
+        explicit Dict(u32 in_capacity = 7, vex ::Allocator in_alloc = vex::Mallocator::makeAllocatorHandle())
+            : data(in_alloc, vex::util::closestPrimeSearch(in_capacity))
+        {
+            refreshState();
 
-		inline TVal* TryGet(const TKey& key) const noexcept
-		{
-			int32_t ind = FindRec(key);
-			return ind >= 0 ? &_records[ind].Value : nullptr;
-		}
+            std::fill_n(data.buckets, capacity(), -1);
+            auto b = ControlBlock{-1, -1};
+            std::fill_n(data.blocks, capacity(), b);
+        }
+        Dict(const Dict& other) : data(other.data.allocator, other.capacity())
+        {
+            refreshState();
 
-		bool Remove(const TKey& key) noexcept
-		{
-			int32_t hashCode = THasher::Hash(key) & 0x7FFFFFFF;
-			int32_t bucket = mod(hashCode, _buckets.size());
-			int32_t previous = -1;
-			for (int32_t i = _buckets[bucket]; i >= 0; previous = i, i = _blocks[i].Next)
-			{
-				if (_blocks[i].Hash == hashCode && (_records[i].Key == key))
-				{
-					// only
-					if (previous < 0)
-					{
-						_buckets[bucket] = _blocks[i].Next;
-					}
-					// middle or last
-					else
-					{
-						_blocks[previous].Next = _blocks[i].Next;
-					}
+            top_idx = other.top_idx;
+            free_idx = other.free_idx;
+            free_count = other.free_count;
 
-					Record& entry = _records[i];
-					{
-						_blocks[i].Hash = -1;
-						_blocks[i].Next = _free;
+            RawBuffer<i32> o_buckets = other.data.bucketsBuffer();
+            RawBuffer<ControlBlock> o_blocks = other.data.blocksBuffer();
+            RawBuffer<Record> o_recs = other.data.recordsBuffer();
 
-						entry.Key.~TKey();
-						entry.Value.~TVal();
-					}
-					_free = i;
-					_freeCount++;
+            RawBuffer<i32> s_buckets = data.bucketsBuffer();
+            RawBuffer<ControlBlock> s_blocks = data.blocksBuffer();
+            RawBuffer<Record> s_recs = data.recordsBuffer();
 
-					return true;
-				}
-			}
+            o_buckets.copyTo(s_buckets, {});
+            o_blocks.copyTo(s_blocks);
 
-			return false;
-		}
+            if constexpr (std::is_trivially_copyable<Record>::value)
+            {
+                std::memcpy(s_recs.first, o_recs.first, o_recs.capacity * sizeof(Record));
+            }
+            else
+            {
+                for (i32 i = 0; i < o_recs.size(); ++i)
+                {
+                    if (o_blocks[i].hash >= 0)
+                    {
+                        new (&s_recs[i]) Record(o_recs[i]);
+                    }
+                }
+            }
+        }
 
-		inline void Clear()
-		{
-			if (_top == 0) // it is already empty
-				return;
+        Dict& operator=(const Dict& other)
+        {
+            if (this != &other)
+            {
+                Dict tmp(other);
+                *this = std::move(tmp);
+            }
 
-			_freeCount = 0;
-			_free = -1;
-			_top = 0;
+            return *this;
+        }
 
-			if constexpr (std::is_trivially_copyable<Record>::value)
-			{
-				// basically do nothing
-			}
-			else
-			{
-				for (int32_t i = 0; i < _blocks.size(); ++i)
-				{
-					if (_blocks[i].Hash >= 0)
-						_records[i].~Record();
-				}
-			}
+        Dict& operator=(Dict&& other)
+        {
+            if (this != &other)
+            {
+                data = std::move(other.data);
 
-			std::fill_n(_buckets.First, _buckets.size(), -1);
-			auto b = ControlBlock{-1, -1};
-			std::fill_n(_blocks.First, _blocks.size(), b);
-		}
+                top_idx = other.top_idx;
+                free_idx = other.free_idx;
+                free_count = other.free_count;
+                refreshState();
+
+                // reset other
+                other.top_idx = 0;
+                other.free_count = 0;
+                other.free_idx = 0;
+                other.data = CombinedStorage(other.data.allocator, vex::util::closestPrimeSearch(7));
+
+                other.refreshState();
+                std::fill_n(other.data.buckets, other.data.capacity, -1);
+                auto b = ControlBlock{-1, -1};
+                std::fill_n(other.data.blocks, other.data.capacity, b);
+            }
+
+            return *this;
+        }
+
+        ~Dict()
+        {
+            if constexpr (!std::is_trivially_destructible<Record>::value)
+            {
+                for (i32 i = 0; i < capacity(); ++i)
+                {
+                    if (data.blocks[i].hash >= 0)
+                        data.recs[i].~Record();
+                    data.blocks[i].hash = -1;
+                }
+            }
+        }
+
+        template <typename T = TVal>
+        inline T* Any() const
+        {
+            if (size() > 0)
+            {
+                for (i32 i = 0; i < size(); ++i)
+                {
+                    if (data.blocks[i].hash > 0)
+                        return &data.recs[i].value;
+                }
+            }
+
+            return nullptr;
+        }
+
+        template <class... Types>
+        inline void emplace(const TKey& key, Types&&... arguments)
+        {
+            i32 i = findRec(key);
+            if (i >= 0)
+            {
+                data.recs[i].value.~TVal();
+                new (&data.recs[i].value) TVal(std::forward<Types>(arguments)...);
+            }
+            else
+            {
+                Record& r = createRecord(key);
+                new (&r.value) TVal(std::forward<Types>(arguments)...);
+            }
+        }
+        static inline volatile i32 dbg;
+        template <class... Types>
+        inline TVal& emplaceAndGet(const TKey& key, Types&&... arguments)
+        {
+            i32 i = findRec(key);
+            if (i >= 0)
+            {
+                data.recs[i].value.~TVal();
+                new (&data.recs[i].value) TVal(std::forward<Types>(arguments)...);
+                return data.recs[i].value;
+            }
+            else
+            {
+                Record& r = createRecord(key);
+                new (&r.value) TVal(std::forward<Types>(arguments)...);
+                return r.value;
+            }
+        }
+
+        template <typename T = TVal>
+        inline typename std::enable_if_t<std::is_default_constructible<T>::value, TVal> valueOrDefault(
+            const TKey& key) const
+        {
+            i32 ind = findRec(key);
+            return ind >= 0 ? data.recs[ind].value : TVal();
+        }
+
+        inline TVal* tryGet(const TKey& key) const noexcept
+        {
+            i32 ind = findRec(key);
+            return ind >= 0 ? &data.recs[ind].value : nullptr;
+        }
+
+        bool remove(const TKey& key) noexcept
+        {
+            i32 hash_ccode = THasher::hash(key) & 0x7FFFFFFF;
+            i32 bucket = mod(hash_ccode, capacity());
+            i32 previous = -1;
+
+            for (i32 i = data.buckets[bucket]; i >= 0; previous = i, i = data.blocks[i].next)
+            {
+                if (data.blocks[i].hash == hash_ccode && (data.recs[i].key == key))
+                {
+                    // only
+                    if (previous < 0)
+                    {
+                        data.buckets[bucket] = data.blocks[i].next;
+                    }
+                    // middle or last
+                    else
+                    {
+                        data.blocks[previous].next = data.blocks[i].next;
+                    }
+
+                    Record& entry = data.recs[i];
+                    {
+                        data.blocks[i].hash = -1;
+                        data.blocks[i].next = free_idx;
+
+                        entry.key.~TKey();
+                        entry.value.~TVal();
+                    }
+                    free_idx = i;
+                    free_count++;
+
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        inline void clear()
+        {
+            if (top_idx == 0) // it is already empty
+                return;
+
+            free_count = 0;
+            free_idx = -1;
+            top_idx = 0;
+
+            if constexpr (std::is_trivially_copyable<Record>::value)
+            {
+                // basically do nothing
+            }
+            else
+            {
+                for (i32 i = 0; i < capacity(); ++i)
+                {
+                    if (data.blocks[i].hash >= 0)
+                        data.recs[i].~Record();
+                }
+            }
+
+            std::fill_n(data.buckets, capacity(), -1);
+            auto b = ControlBlock{-1, -1};
+            std::fill_n(data.blocks, capacity(), b);
+        }
 
 
-		struct DIterator
-		{
-			FORCE_INLINE bool Advance()
-			{
-				int32_t count = _map.Size();
-				while (_index < (count - 1))
-				{
-					_index++;
-					ControlBlock& e = _map._blocks[_index];
-					if (e.Hash >= 0)
-					{
-						return true;
-					}
-				}
+        struct DIterator
+        {
+            FORCE_INLINE bool advance()
+            {
+                i32 count = owner_map.size();
+                while (index < (count - 1))
+                    [[likely]]
+                    {
+                        index++;
+                        const auto hash = owner_map.data.blocks[index].hash;
+                        if (hash >= 0) [[likely]]
+                        {
+                            return true;
+                        }
+                    }
 
-				_index = _map.Size() + 1;
-				return false;
-			}
+                index = owner_map.size() + 1;
+                return false;
+            }
 
-			FORCE_INLINE bool IsDone() const { return _index >= (_map.Size()); }
+            FORCE_INLINE bool isDone() const { return index >= (owner_map.size()); }
 
-			friend auto operator==(DIterator lhs, DSentinel rhs) { return lhs.IsDone(); }
-			friend auto operator==(DSentinel lhs, DIterator rhs) { return rhs == lhs; }
-			friend auto operator!=(DIterator lhs, DSentinel rhs) { return !(lhs == rhs); }
-			friend auto operator!=(DSentinel lhs, DIterator rhs) { return !(lhs == rhs); }
+            friend auto operator==(DIterator lhs, DSentinel rhs) { return lhs.isDone(); }
+            friend auto operator==(DSentinel lhs, DIterator rhs) { return rhs == lhs; }
+            friend auto operator!=(DIterator lhs, DSentinel rhs) { return !(lhs == rhs); }
+            friend auto operator!=(DSentinel lhs, DIterator rhs) { return !(lhs == rhs); }
 
-			inline Record& operator*() const { return Current(); }
-			inline auto& operator++()
-			{
-				Advance();
-				return *this;
-			}
+            inline Record& operator*() const { return current(); }
+            inline auto& operator++()
+            {
+                advance();
+                return *this;
+            }
 
-			inline Record& Current() const
-			{
-				// assert(_index < _map.Size());
-				return _map._records[_index];
-			}
+            inline Record& current() const
+            {
+                // checkAlways_(_index < _map.Size());
+                return *(owner_map.data.recs + index);
+            }
 
-		private:
-			DIterator(const Dict& owner) : _map(owner) {}
-			const Dict& _map;
-			int32_t _index = 0;
-			;
+        private:
+            DIterator(const Dict& owner) : owner_map(owner) {}
+            const Dict& owner_map;
+            i32 index = 0;
 
-			friend class Dict;
-		};
+            friend class Dict;
+        };
 
-		FORCE_INLINE DIterator begin() noexcept { return DIterator{*this}; };
-		FORCE_INLINE DSentinel end() const noexcept { return kEndIteratorSentinel; };
+        FORCE_INLINE DIterator begin() noexcept { return DIterator{*this}; };
+        FORCE_INLINE DSentinel end() const noexcept { return kEndIteratorSentinel; };
 
-		template <typename T = TVal>
-		inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> operator[](const TKey& key)
-		{
-			int32_t i = FindRec(key);
+        template <typename T = TVal>
+        inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> operator[](const TKey& key)
+        {
+            i32 i = findRec(key);
 
-			if (i < 0)
-			{
-				Record& r = CreateRecord(key);
-				new (&r.Value) TVal();
-				return r.Value;
-			}
+            if (i < 0)
+            {
+                Record& r = createRecord(key);
+                new (&r.value) TVal();
+                return r.value;
+            }
 
-			return _records[i].Value;
-		}
-		FORCE_INLINE bool Contains(const TKey& item) const { return FindRec(item) >= 0; }
+            return data.recs[i].value;
+        }
+        FORCE_INLINE bool contains(const TKey& item) const { return findRec(item) >= 0; }
 
-	private:
-		FORCE_INLINE int32_t FindRec(const TKey& key) const noexcept
-		{
-			// ensure abs value
-			int32_t hashCode = THasher::Hash(key) & 0x7FFFFFFF;
-			int32_t bucketIndex = mod(hashCode, (int)_buckets.Capacity);
-			for (int32_t i = _buckets[bucketIndex]; i >= 0; i = _blocks[i].Next)
-			{
-				if (_blocks[i].Hash == hashCode)
-					if (_records[i].Key == key)
-						return i;
-			}
-			return -1;
-		}
-		struct ControlBlock
-		{
-			int32_t Hash = -1;
-			int32_t Next = -1;
-		};
+    private:
+        FORCE_INLINE i32 findRec(const TKey& key) const noexcept
+        {
+            // ensure abs value
+            i32 hash_code = THasher::hash(key) & 0x7FFFFFFF;
+            i32 bucket_index = mod(hash_code, (int)capacity());
 
-#ifdef ECSCORE_x64
-		uint64_t _fastmodM = 0;
+            for (i32 i = data.buckets[bucket_index]; i >= 0; i = data.blocks[i].next)
+            {
+                if (data.blocks[i].hash == hash_code)
+                    if (data.recs[i].key == key)
+                        return i;
+            }
+            return -1;
+        }
+
+
+        static constexpr float grow_factor = 1.6f;
+        CombinedStorage data;
+
+        i32 top_idx = 0;
+        i32 free_idx = 0;
+        i32 free_count = 0;
+
+#ifdef VEXCORE_x64
+        uint64_t fastmod_m = 0;
 #endif
-		int32_t _free = 0;
-		int32_t _freeCount = 0;
-		int32_t _top = 0;
-
-		const float kGrowFactor = 1.6f;
-
-		SOAOneBuffer<int, // buckets
-			ControlBlock,	// hash and index to next, POD
-			Record>			// Record, trivial or not
-			_data;
-
-		RawBuffer<int32_t> _buckets;
-		RawBuffer<Record> _records;
-		RawBuffer<ControlBlock> _blocks;
-
-		inline void AssignNewBufferHandles()
-		{
-			_buckets = _data.template GetBuffer<0, int32_t>();
-			_blocks = _data.template GetBuffer<1, ControlBlock>();
-			_records = _data.template GetBuffer<2, Record>();
-
-#ifdef ECSCORE_x64
-			_fastmodM = fastmod::computeM_s32(Capacity());
+        inline void refreshState()
+        {
+#ifdef VEXCORE_x64
+            fastmod_m = fastmod::computeM_s32(capacity());
 #endif
-		}
+        }
 
-		FORCE_INLINE int32_t mod(int32_t a, int32_t b) const noexcept
-		{
-#ifdef ECSCORE_x64
-			return fastmod::fastmod_s32(a, _fastmodM, b);
+        FORCE_INLINE i32 mod(i32 a, i32 b) const noexcept
+        {
+#ifdef VEXCORE_x64
+            return fastmod::fastmod_s32(a, fastmod_m, b);
 #else
-			return a % b;
+            return a % b;
 #endif
-		}
+        }
 
-		void Grow()
-		{
-			using namespace util;
-			int32_t newSize = ClosestPrimeSearch((int)(_buckets.size() * kGrowFactor + 1));
+        void grow()
+        {
+            using namespace vex::util;
+            i32 new_size = closestPrimeSearch((i32)(capacity() * grow_factor + 1));
 
-			SOAOneBuffer<int, ControlBlock, Record> newData(newSize);
-			RawBuffer<Record> newRecs = newData.template GetBuffer<2, Record>();
+            CombinedStorage new_data(data.allocator, new_size);
+            RawBuffer<Record> new_recs = new_data.recordsBuffer();
+            auto s_hash_blocks = data.blocksBuffer();
 
-			if constexpr (std::is_trivially_copyable<Record>::value)
-			{
-				std::memcpy(newRecs.First, _records.First, _records.Capacity * sizeof(Record));
-			}
-			else if constexpr (std::is_move_constructible<Record>::value)
-			{
-				for (int32_t i = 0; i < _records.size(); ++i)
-				{
-					if (_blocks[i].Hash >= 0)
-					{
-						new (&newRecs[i]) Record(std::move(_records[i]));
-						_records[i].~Record();
-					}
-				}
-			}
-			else
-			{
-				for (int32_t i = 0; i < _records.size(); ++i)
-				{
-					if (_blocks[i].Hash >= 0)
-					{
-						new (&newRecs[i]) Record(_records[i]);
-						_records[i].~Record();
-					}
-				}
-			}
+            if constexpr (std::is_trivially_copyable<Record>::value)
+            {
+                std::memcpy(new_recs.first, data.recs, capacity() * sizeof(Record));
+            }
+            else if constexpr (std::is_move_constructible<Record>::value)
+            {
+                for (i32 i = 0; i < capacity(); ++i)
+                {
+                    if (data.blocks[i].hash >= 0)
+                    {
+                        new (&new_recs[i]) Record(std::move(data.recs[i]));
+                        data.recs[i].~Record();
+                    }
+                }
+            }
+            else
+            {
+                for (i32 i = 0; i < capacity(); ++i)
+                {
+                    if (data.blocks[i].hash >= 0)
+                    {
+                        new (&new_recs[i]) Record(data.recs[i]);
+                        data.recs[i].~Record();
+                    }
+                }
+            }
 
-			_blocks.CopyTo(newData.template GetBuffer<1, ControlBlock>(), ControlBlock{});
+            s_hash_blocks.copyTo(new_data.blocksBuffer(), ControlBlock{});
 
-			_data = std::move(newData);
+            data = std::move(new_data);
 
-			AssignNewBufferHandles();
-			std::fill_n(_buckets.First, _buckets.size(), -1);
+            refreshState();
 
-			for (int32_t i = 0; i < _top; i++)
-			{
-				if (_blocks[i].Hash >= 0)
-				{
-					int32_t bucket = mod(_blocks[i].Hash, newSize); // == hash % size
+            std::fill_n(data.buckets, capacity(), -1);
 
-					_blocks[i].Next = _buckets[bucket];
-					_buckets[bucket] = i; // old i-th element hash would not lead here
-				}
-			}
-		}
+            for (i32 i = 0; i < top_idx; i++)
+            {
+                if (data.blocks[i].hash >= 0)
+                {
+                    i32 bucket = mod(data.blocks[i].hash, new_size); // == hash % size
 
-		inline Record& CreateRecord(const TKey& key)
-		{
-			int32_t hashCode = THasher::Hash(key) & 0x7FFFFFFF;
-			int32_t bucketIndex = mod(hashCode, (int)_buckets.Capacity);
-			int32_t index = 0;
+                    data.blocks[i].next = data.buckets[bucket];
+                    data.buckets[bucket] = i; // old i-th element hash would not lead here
+                }
+            }
+        }
 
-			if (_freeCount > 0)
-			{
-				index = _free;
-				_free = _blocks[index].Next;
-				_freeCount--;
-			}
-			else
-			{
-				// capacity reached
-				if (_top == _records.size())
-				{
-					Grow();
-					bucketIndex = mod(hashCode, (int)_buckets.Capacity);
-					;
-				}
-				index = _top;
-				_top++;
-			}
+        inline Record& createRecord(const TKey& key)
+        {
+            i32 hash_code = THasher::hash(key) & 0x7FFFFFFF;
+            i32 bucket_ind = mod(hash_code, (int)capacity());
+            i32 index = 0;
 
-			Record& entry = _records[index];
-			{
-				_blocks[index].Hash = hashCode;
-				_blocks[index].Next = _buckets[bucketIndex];
+            if (free_count > 0)
+            {
+                index = free_idx;
+                free_idx = data.blocks[index].next;
+                free_count--;
+            }
+            else
+            {
+                // capacity reached
+                if (top_idx == capacity()) [[unlikely]]
+                {
+                    grow();
+                    bucket_ind = mod(hash_code, (int)capacity());
+                }
+                index = top_idx;
+                top_idx++;
+            }
 
-				new (&entry.Key) TKey(key);
-				// value should be initialized in getter
-			}
-			_buckets[bucketIndex] = index;
-			return entry;
-		}
-	};
-	;
+            Record& entry = data.recs[index];
+            {
+                data.blocks[index].hash = hash_code;
+                data.blocks[index].next = data.buckets[bucket_ind];
+
+                new (&entry.key) TKey(key);
+                // value should be initialized in getter
+            }
+            data.buckets[bucket_ind] = index;
+            return entry;
+        }
+    };
+
 } // namespace vex

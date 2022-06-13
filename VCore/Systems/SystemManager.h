@@ -20,9 +20,9 @@ namespace vex
 			auto tid = tinfo::typeID<TConcreteSystem>();
 			static_assert(std::is_base_of<ISystem, TConcreteSystem>::value,
 				"cannot register custom type as a system, should be subclass of ISystem");
-			if (!_uniqueSystems.Contains(tid))
+			if (!_uniqueSystems.contains(tid))
 			{
-				_uniqueSystems.Emplace(tid,
+				_uniqueSystems.emplace(tid,
 					new TConcreteSystem() // owned by unique_ptr
 				);
 			}
@@ -42,22 +42,22 @@ namespace vex
 		template <class TConcreteSystem>
 		inline bool Contains() const noexcept
 		{
-			return _uniqueSystems.Contains(tinfo::typeID<TConcreteSystem>());
+			return _uniqueSystems.contains(tinfo::typeID<TConcreteSystem>());
 		}
 
 		template <class TConcreteSystem>
 		inline void Remove() noexcept
 		{
 			auto tid = tinfo::typeID<TConcreteSystem>();
-			if (!_uniqueSystems.Contains(tid))
+			if (!_uniqueSystems.contains(tid))
 				return;
 
-			const ISystem* sys = _uniqueSystems.TryGet(tid)->get();
+			const ISystem* sys = _uniqueSystems.tryGet(tid)->get();
 			for (auto& it : _lanes)
 			{
 				it.Value.erase(sys);
 			}
-			_uniqueSystems.Remove(tid);
+			_uniqueSystems.remove(tid);
 		}
 
 	private:

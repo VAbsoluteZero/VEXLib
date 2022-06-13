@@ -18,12 +18,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #include <VCore/World/World.h>
+#include <VCore/Memory/Memory.h>
 
 using namespace vex; 
 
 EntityHandle vex::World::InstantiateArchetype(const std::string& id)
 {
-	if (!Archetypes.Contains(id))
+	if (!Archetypes.contains(id))
 		return EntityHandle{};
 
 	// #todo fixme
@@ -49,9 +50,9 @@ bool vex::World::Destroy(EntityHandle handle)
 
 	for (Dict<tTypeID, UniqueHandle>::Record& kv : Storages)
 	{
-		if (0 != (kv.Value.kMask & entRef.ComponentMask))
+		if (0 != (kv.value.kMask & entRef.ComponentMask))
 		{
-			kv.Value.Get()->Remove(handle);
+			kv.value.Get()->Remove(handle);
 		}
 	}
 	entRef.ComponentMask = 0;
@@ -102,9 +103,9 @@ EntityHandle vex::World::Clone(EntityHandle original)
 
 	for (auto& kv : Storages)
 	{
-		if (0 != (kv.Value.kMask & orig.ComponentMask))
+		if (0 != (kv.value.kMask & orig.ComponentMask))
 		{
-			kv.Value.Get()->Clone(original, newOne);
+			kv.value.Get()->Clone(original, newOne);
 		}
 	}
 	newEnt.ComponentMask = orig.ComponentMask;

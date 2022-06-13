@@ -113,7 +113,7 @@ namespace vex
             u32 total_size = 0;
             for (int i = 0; i < 3; ++i)
             {
-                total_size += size_list[i] * capacity + alignment * 2;
+                total_size += (u32)(size_list[i] * capacity + alignment * 2);
             }
 
             // #todo write guard block
@@ -284,7 +284,7 @@ namespace vex
         {
             if constexpr (!std::is_trivially_destructible<Record>::value)
             {
-                for (i32 i = 0; i < capacity(); ++i)
+                for (u32 i = 0; i < capacity(); ++i)
                 {
                     if (data.blocks[i].hash >= 0)
                         data.recs[i].~Record();
@@ -298,7 +298,7 @@ namespace vex
         {
             if (size() > 0)
             {
-                for (i32 i = 0; i < size(); ++i)
+                for (u32 i = 0; i < size(); ++i)
                 {
                     if (data.blocks[i].hash > 0)
                         return &data.recs[i].value;
@@ -410,7 +410,7 @@ namespace vex
             }
             else
             {
-                for (i32 i = 0; i < capacity(); ++i)
+                for (u32 i = 0; i < capacity(); ++i)
                 {
                     if (data.blocks[i].hash >= 0)
                         data.recs[i].~Record();
@@ -548,7 +548,7 @@ namespace vex
             }
             else if constexpr (std::is_move_constructible<Record>::value)
             {
-                for (i32 i = 0; i < capacity(); ++i)
+                for (u32 i = 0; i < capacity(); ++i)
                 {
                     if (data.blocks[i].hash >= 0)
                     {
@@ -559,7 +559,7 @@ namespace vex
             }
             else
             {
-                for (i32 i = 0; i < capacity(); ++i)
+                for (u32 i = 0; i < capacity(); ++i)
                 {
                     if (data.blocks[i].hash >= 0)
                     {

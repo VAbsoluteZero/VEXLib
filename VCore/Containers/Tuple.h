@@ -22,106 +22,140 @@
 
 namespace vex
 {
-	template <auto Index, typename TStoredType>
-	struct ValueHolder
-	{
-		template <typename T>
-		ValueHolder(T&& InValue) : Value(std::forward<T>(InValue))
-		{
-		}
+    template <auto Index, typename TStoredType>
+    struct ValueHolder
+    {
+        template <typename T>
+        ValueHolder(T&& InValue) : Value(std::forward<T>(InValue))
+        {
+        }
 
-		ValueHolder() = default;
-		ValueHolder(ValueHolder&&) = default;
-		ValueHolder(const ValueHolder&) = default;
-		ValueHolder& operator=(const ValueHolder&) = default;
+        ValueHolder() = default;
+        ValueHolder(ValueHolder&&) = default;
+        ValueHolder(const ValueHolder&) = default;
+        ValueHolder& operator=(const ValueHolder&) = default;
 
-		TStoredType Value;
-	};
+        TStoredType Value;
+    };
 
-	template <typename... Types>
-	struct Wrap
-	{
-		template <typename T, int... N>
-		struct CreateMembers;
+    template <typename... Types>
+    struct Wrap
+    {
+        template <typename T, int... N>
+        struct CreateMembers;
 
-		template <int... Number>
-		struct CreateMembers<std::integer_sequence<int, Number...>> : public ValueHolder<Number, Types>...
-		{
-			static constexpr auto MemberCount = sizeof...(Types);
-			// static_assert(MemberCount, "no elements in tuple");
-			CreateMembers(Types... val) : ValueHolder<Number, Types>(val)... {}
+        template <int... Number>
+        struct CreateMembers<std::integer_sequence<int, Number...>> : public ValueHolder<Number, Types>...
+        {
+            static constexpr auto MemberCount = sizeof...(Types);
 
-			// template <typename... TArgs>
-			// CreateMembers(TArgs&&... val) : ValueHolder<Number, Types>(std::forward<TArgs>(val))...
-			//{
-			//}
+            CreateMembers(Types... val) : ValueHolder<Number, Types>(val)... {}
 
-			CreateMembers& operator=(const CreateMembers&) = default;
-			CreateMembers& operator=(CreateMembers&&) = default;
-			CreateMembers(const CreateMembers&) = default;
-			CreateMembers(CreateMembers&&) = default;
-			CreateMembers() = default;
+            template <typename... TArgs>
+            CreateMembers(TArgs&&... val) : ValueHolder<Number, Types>(std::forward<TArgs>(val))...
+            {
+            }
 
-			template <int I>
-			constexpr auto& Get()
-			{
-				return get<I>();
-			}
+            CreateMembers& operator=(const CreateMembers&) = default;
+            CreateMembers& operator=(CreateMembers&&) = default;
+            CreateMembers(const CreateMembers&) = default;
+            CreateMembers(CreateMembers&&) = default;
+            CreateMembers() = default;
 
-			template <int I>
-			constexpr auto& get()
-			{
-				static_assert(I < (sizeof...(Types)), "out of bounds");
-				using Target = typename GetTypeByIndex<I, Types...>::type;
-				return ((static_cast<ValueHolder<I, Target>*>(this))->Value);
-			}
-		};
-		using WrappedMembers = CreateMembers<std::make_integer_sequence<int, sizeof...(Types)>>;
-		static inline decltype(auto) MakeDefault()
-		{
-			return CreateMembers<std::make_integer_sequence<int, sizeof...(Types)>>();
-		}
+            template <int I>
+            constexpr auto& get() &
+            {
+                static_assert(I < (sizeof...(Types)), "out of bounds");
+                using Target = typename GetTypeByIndex<I, Types...>::type;
+                return ((static_cast<ValueHolder<I, Target>*>(this))->Value);
+            }
+            template <int I>
+            constexpr const auto& get() const&
+            {
+                static_assert(I < (sizeof...(Types)), "out of bounds");
+                using Target = typename GetTypeByIndex<I, Types...>::type;
+                return ((static_cast<const ValueHolder<I, Target>*>(this))->Value);
+            }
+            template <int I>
+            constexpr auto get() &&
+            {
+                static_assert(I < (sizeof...(Types)), "out of bounds");
+                using Target = typename GetTypeByIndex<I, Types...>::type;
+                return static_cast<Target&&>((static_cast<ValueHolder<I, Target>*>(this))->Value);
+            }
+            template <int I>
+            constexpr auto get() const&&
+            {
+                static_assert(I < (sizeof...(Types)), "out of bounds");
+                using Target = typename GetTypeByIndex<I, Types...>::type;
+                return static_cast<Target&&>((static_cast<ValueHolder<I, Target>*>(this))->Value);
+            }
+        };
 
-		WrappedMembers Members;
-	};
+        using WrappedMembers = CreateMembers<std::make_integer_sequence<int, sizeof...(Types)>>;
+        static inline decltype(auto) MakeDefault()
+        {
+            return CreateMembers<std::make_integer_sequence<int, sizeof...(Types)>>();
+        }
 
-	template <typename... Types>
-	using TupleAlias = decltype(Wrap<Types...>::MakeDefault());
+        WrappedMembers Members;
+    };
 
-	template <typename... Types>
-	struct Tuple : public TupleAlias<Types...>
-	{
-		// 		template <typename... TArgs>
-		// 		Tuple(TArgs&&... val) : TupleAlias<Types...>(std::forward<TArgs>(val)...)
-		// 		{
-		// 		}
-		Tuple(Types... val) : TupleAlias<Types...>((val)...) {}
-		Tuple(const Tuple&) = default;
-		Tuple(Tuple&&) = default;
-		Tuple() = default;
-		~Tuple() = default;
+    template <typename... Types>
+    using TupleAlias = decltype(Wrap<Types...>::MakeDefault());
 
-		Tuple& operator=(const Tuple&) = default;
-		Tuple& operator=(Tuple&&) = default;
-	};
+    template <typename... Types>
+    struct Tuple : public TupleAlias<Types...>
+    {
+        Tuple(const Tuple&) = default;
+        Tuple(Tuple& other) : Tuple{const_cast<Tuple const&>(other)} {};
+        Tuple(Tuple&&) = default;
+        Tuple(Types... val) : TupleAlias<Types...>((val)...) {}
+        template <typename... TArgs>
+        Tuple(TArgs&&... val) : TupleAlias<Types...>(std::forward<TArgs>(val)...)
+        {
+            static_assert(sizeof...(TArgs) == sizeof...(Types), //
+                "Provide arguments for every subtype constructor, or none.");
+        }
+        Tuple() = default;
+        ~Tuple() = default;
+
+        Tuple& operator=(const Tuple&) = default;
+        Tuple& operator=(Tuple&&) = default;
+    };
 } // namespace vex
 
 namespace std
 {
-	template <typename... Types>
-	struct tuple_size<vex::Tuple<Types...>> : std::integral_constant<std::size_t, sizeof...(Types)>
-	{
-	};
+    template <typename... Types>
+    struct tuple_size<vex::Tuple<Types...>> : std::integral_constant<std::size_t, sizeof...(Types)>
+    {
+    };
 
-	template <std::size_t N, class... Types>
-	struct tuple_element<N, vex::Tuple<Types...>>
-	{
-		using type = typename vex::GetTypeByIndex<N, Types...>::type;
-	};
+    template <std::size_t N, class... Types>
+    struct tuple_element<N, vex::Tuple<Types...>>
+    {
+        using type = typename vex::GetTypeByIndex<N, Types...>::type;
+    };
 
-	template <auto I, class... Types>
-	constexpr auto& get(vex::Tuple<Types...>& arg)
-	{
-		return arg.Get<I>();
-	}
+    template <auto I, class... Types>
+    constexpr decltype(auto) get(vex::Tuple<Types...>& arg)
+    {
+        return arg.template Get<I>();
+    }
+    template <auto I, class... Types>
+    constexpr decltype(auto) get(const vex::Tuple<Types...>& arg)
+    {
+        return arg.template Get<I>();
+    }
+    template <auto I, class... Types>
+    constexpr decltype(auto) get(vex::Tuple<Types...>&& arg)
+    {
+        return arg.template Get<I>();
+    }
+    template <auto I, class... Types>
+    constexpr decltype(auto) get(const vex::Tuple<Types...>&& arg)
+    {
+        return arg.template Get<I>();
+    }
 } // namespace std

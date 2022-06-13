@@ -68,7 +68,7 @@ namespace vex
             capacity = buffer_size;
         }
 
-        u8* alloc(u64 in_size, u64 al) override
+        inline u8* alloc(u64 in_size, u64 al) override
         {
             Self* self = this;
             auto al_offset = al - (self->top % al);
@@ -92,7 +92,7 @@ namespace vex
             return mem;
         }
 
-        void dealloc(void* ptr) override {} // no-op
+        inline void dealloc(void* ptr) override {} // no-op
 
         void reset() { top = 0; }
     };

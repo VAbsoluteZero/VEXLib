@@ -2,16 +2,14 @@
 /*
  * MIT LICENSE
  * Copyright (c) 2019 Vladyslav Joss
- */
-
-#include <assert.h>
+ */ 
  
 #include <VCore/Containers/Union.h>
 #include <VCore/Utils/VUtilsBase.h>
 #include <VCore/Utils/CoreTemplates.h>
 
 namespace vex
-{
+{ 
     /*
         Simple Static Ring Buffer, meant mainly for PODs.
         fill_forward == true means that buffer will grow from 0 to k_capacity, otherwise k_capacity to 0.

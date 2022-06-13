@@ -13,8 +13,8 @@ namespace vex
             defer_guard(TFunc f) : func(f) {}
             ~defer_guard() { func(); }
         };
-    } // namespace __internal
-} // namespace vex
+    } 
+} 
 
 #define vpint_COMBINE1(X, Y) X##Y
 #define vpint_COMBINE(X, Y) vpint_COMBINE1(X, Y)
@@ -29,9 +29,10 @@ namespace vex::debug
         static void default_print(const char* file, int line, const char* msg);
         static void print(const char* file, int line, const char* msg);
     };
-} // namespace vex::debug
-
-
+} 
+//===========================================================================================================
+// VEX Check (Assert) implementation
+//===========================================================================================================
 #ifndef VEX_CHECK_LEVEL
     #ifdef NDEBUG
         #define VEX_CHECK_LEVEL 1
@@ -52,18 +53,15 @@ extern void __cdecl __debugbreak(void);
     #define VEX_DBGBREAK() __asm__ __volatile__("int $3\n\t")
 #elif
     #error No debug break for platform
-#endif
-
-
-//============================================================================================================
+#endif 
 #ifndef VEX_ABORT_ON_CHECK_FAIL
     #define VEX_ABORT_ON_CHECK_FAIL 0
 #endif
 
 #if VEX_ABORT_ON_CHECK_FAIL
-    #define VEXpriv_MaybeCrashOnCheck()                      \
-        {                                                    \
-            std::abort();                                    \
+    #define VEXpriv_MaybeCrashOnCheck() \
+        {                               \
+            std::abort();               \
         }
 #else
     #define VEXpriv_MaybeCrashOnCheck()
@@ -73,7 +71,7 @@ extern void __cdecl __debugbreak(void);
 
 // FORCE_NOINLINE ?
 #define VEXpriv_DoCheck(ConditionExp, File, Line, Msg) \
-    (!!(ConditionExp)) || ([]() -> bool FORCE_NOINLINE \
+    (!!(ConditionExp)) || ([]() -> bool \
 		{ \
 				vex::debug::DebugLogHook::print(File, Line, Msg); \
 				return true; \
@@ -92,7 +90,9 @@ extern void __cdecl __debugbreak(void);
 			return false; \
 		}()) &&  ([] { VEX_DBGBREAK(); VEXpriv_MaybeCrashOnCheck(); return false;} ())
 
-
+// toggle which checks should be enabled depending on CHECK_LEVEL
+// by default 'check' will work in debug only, 'checkRel' will also work in release,
+// 'checkParanoid' would nod work unless VEX_CHECK_LEVEL is set to 3 or more
 #if VEX_CHECK_LEVEL == 0 // none
     #define check(ConditionExpr, Msg) VEXpriv_IgnoreCheck(ConditionExpr)
     #define check_(ConditionExpr) VEXpriv_IgnoreCheck(ConditionExpr)
@@ -111,7 +111,8 @@ extern void __cdecl __debugbreak(void);
 
     #define checkAlways(ConditionExpr, Msg) VEXpriv_IgnoreCheck(ConditionExpr)
     #define checkAlways_(ConditionExpr) VEXpriv_IgnoreCheck(ConditionExpr)
-    #define checkAlwaysRel(ConditionExpr, Msg) VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
+    #define checkAlwaysRel(ConditionExpr, Msg) \
+        VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
     #define checkAlwaysParanoid(ConditionExpr, Msg) VEXpriv_IgnoreCheck(ConditionExpr)
 #elif VEX_CHECK_LEVEL == 2 // default
     #define check(ConditionExpr, Msg) VEXpriv_DoCheck(ConditionExpr, __FILE__, __LINE__, Msg)
@@ -119,9 +120,12 @@ extern void __cdecl __debugbreak(void);
     #define checkRel(ConditionExpr, Msg) VEXpriv_DoCheck(ConditionExpr, __FILE__, __LINE__, Msg)
     #define checkParanoid(ConditionExpr, Msg) VEXpriv_IgnoreCheck(ConditionExpr)
 
-    #define checkAlways(ConditionExpr, Msg) VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
-    #define checkAlways_(ConditionExpr) VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, " no message ")
-    #define checkAlwaysRel(ConditionExpr, Msg) VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
+    #define checkAlways(ConditionExpr, Msg) \
+        VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
+    #define checkAlways_(ConditionExpr) \
+        VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, " no message ")
+    #define checkAlwaysRel(ConditionExpr, Msg) \
+        VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
     #define checkAlwaysParanoid(ConditionExpr, Msg) VEXpriv_IgnoreCheck(ConditionExpr)
 #elif VEX_CHECK_LEVEL > 3 // paranoid
     #define check(ConditionExpr, Msg) VEXpriv_DoCheck(ConditionExpr, __FILE__, __LINE__, Msg)
@@ -129,8 +133,12 @@ extern void __cdecl __debugbreak(void);
     #define checkRel(ConditionExpr, Msg) VEXpriv_DoCheck(ConditionExpr, __FILE__, __LINE__, Msg)
     #define checkParanoid(ConditionExpr, Msg) VEXpriv_DoCheck(ConditionExpr, __FILE__, __LINE__, Msg)
 
-    #define checkAlways(ConditionExpr, Msg) VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
-    #define checkAlways_(ConditionExpr) VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, " no message ")
-    #define checkAlwaysRel(ConditionExpr, Msg) VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
-    #define checkAlwaysParanoid(ConditionExpr, Msg) VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
+    #define checkAlways(ConditionExpr, Msg) \
+        VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
+    #define checkAlways_(ConditionExpr) \
+        VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, " no message ")
+    #define checkAlwaysRel(ConditionExpr, Msg) \
+        VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
+    #define checkAlwaysParanoid(ConditionExpr, Msg) \
+        VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
 #endif

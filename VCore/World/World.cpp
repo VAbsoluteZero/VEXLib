@@ -52,12 +52,12 @@ bool vex::World::Destroy(EntityHandle handle)
 	{
 		if (0 != (kv.value.kMask & entRef.ComponentMask))
 		{
-			kv.value.Get()->Remove(handle);
+			kv.value.get()->remove(handle);
 		}
 	}
 	entRef.ComponentMask = 0;
 
-	Entities[handle.ID].Handle = {};
+	Entities[handle.ID].handle = {};
 	FreeEntitySlotsStack.push_back(handle.ID);
 
 	return true;
@@ -76,7 +76,7 @@ vex::EntityHandle vex::World::CreateBlank()
 	}
 
 	Entity& ent = Entities[pos];
-	ent.Handle = EntityHandle{pos};
+	ent.handle = EntityHandle{pos};
 	return ent;
 }
 
@@ -105,7 +105,7 @@ EntityHandle vex::World::Clone(EntityHandle original)
 	{
 		if (0 != (kv.value.kMask & orig.ComponentMask))
 		{
-			kv.value.Get()->Clone(original, newOne);
+			kv.value.get()->Clone(original, newOne);
 		}
 	}
 	newEnt.ComponentMask = orig.ComponentMask;

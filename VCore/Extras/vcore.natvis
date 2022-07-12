@@ -15,7 +15,7 @@
 		</Expand>
 	</Type>  
 	<!--=============================================================================-->
-	<Type Name="vex::Ring">
+	<Type Name="vex::Ring&lt;*&gt;">
 		<DisplayString>{{len={len} cap={cap} data={first, len};}</DisplayString>
 		<Expand>
 			<Item Name="[size ]" ExcludeView="simple">len</Item>
@@ -27,4 +27,38 @@
 		</Expand>
 	</Type>
 	<!--=============================================================================-->
+    <Type Name="vex::Dict&lt;*,*&gt;">
+        <DisplayString>{{capacity={data.capacity} size={top_idx - free_count} ;}</DisplayString>
+        <Expand>
+            <Item Name="[size ]" ExcludeView="simple">top_idx - free_count</Item> 
+            <Synthetic Name="blocks">
+                <Expand> 
+                    <ArrayItems>
+                        <Size>data.capacity</Size>
+                        <ValuePointer>data.blocks</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+            <Synthetic Name="buckets">
+                <Expand>
+                    <ArrayItems>
+                        <Size>data.capacity</Size>
+                        <ValuePointer>data.buckets</ValuePointer>
+                    </ArrayItems>
+                </Expand>
+            </Synthetic>
+            <CustomListItems MaxItemsPerView="1000">
+                <Variable Name="index" InitialValue="0" /> 
+                <Variable Name="inc" InitialValue="1" /> 
+                <Size>top_idx - free_count</Size> 
+                <Loop>
+                    <If Condition="data.blocks[index].hash &gt;= 0">
+                        <Item>data.recs[index],na</Item>
+                    </If>
+                    <Exec>index++</Exec> 
+                </Loop>
+            </CustomListItems> 
+        </Expand>
+    </Type>
+    <!--=============================================================================-->
 </AutoVisualizer>

@@ -54,7 +54,7 @@ namespace vex
         inline bool Contains(EntityHandle handle) const noexcept
         {
             bool inValidRange = (Entities.size() > handle.ID);
-            return handle && inValidRange && Entities[handle.ID].Handle; // #todo add UID check
+            return handle && inValidRange && Entities[handle.ID].handle; // #todo add UID check
         }
 
         template <typename Callable>
@@ -114,7 +114,7 @@ namespace vex
                 return false;
 
             ent.ComponentMask &= ~(TComp::Mask);
-            return GetStorage<TComp>().Remove(handle);
+            return GetStorage<TComp>().remove(handle);
         }
 
         template <class TComp, class... TArgs>
@@ -146,13 +146,13 @@ namespace vex
             return GetStorage<TComp>().Find(handle);
         }
         template <class TComp>
-        inline TComp& Get(EntityHandle handle)
+        inline TComp& get(EntityHandle handle)
         {
             auto& ent = Entities[handle.ID];
             if (!ent || !ent.Has<TComp>())
                 assert(false);
 
-            return GetStorage<TComp>().Get(handle);
+            return GetStorage<TComp>().get(handle);
         }
 
         template <class... TTypes>
@@ -191,7 +191,7 @@ namespace vex
         {
             auto* existingHandle = Storages.tryGet(tid);
             if (nullptr != existingHandle)
-                return (existingHandle->Get());
+                return (existingHandle->get());
             return nullptr;
         }
 
@@ -222,7 +222,7 @@ namespace vex
                 return static_cast<T*>(_data); // no need for dynamic, types guaranteed to match
             }
 
-            StorageBase* const Get() const { return _data; }
+            StorageBase* const get() const { return _data; }
 
             UniqueHandle(tTypeID id, StorageBase* data) noexcept : kTypeID(id), kMask(data->kMask), _data(data) {}
 
@@ -252,7 +252,7 @@ namespace vex
         {
         public:
             template <typename TComp, class... TArgs>
-            inline const EntityBuilder& Add(TArgs&&... arguments)
+            inline const EntityBuilder& add(TArgs&&... arguments)
             {
                 SelfWorld->CreateComponent(EntID, std::forward<TArgs>(arguments));
                 return *this;

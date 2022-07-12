@@ -18,7 +18,7 @@ namespace vex
 
 #define vpint_COMBINE1(X, Y) X##Y
 #define vpint_COMBINE(X, Y) vpint_COMBINE1(X, Y)
-#define defer_ vex::_internal::defer_guard vpint_COMBINE(defer_anon_, __LINE__) = [&]()
+#define defer_ vex::_internal::defer_guard vpint_COMBINE(defer_anon_, __LINE__) = [&]() 
 
 namespace vex::debug
 {
@@ -70,15 +70,15 @@ extern void __cdecl __debugbreak(void);
 #define VEXpriv_IgnoreCheck(ConditionExp) (!!(ConditionExp))
 
 // FORCE_NOINLINE ?
-#define VEXpriv_DoCheck(ConditionExp, File, Line, Msg) \
-    (!!(ConditionExp)) || ([]() -> bool \
+#define VEXpriv_DoCheckAlwaysTrigger(ConditionExp, File, Line, Msg) \
+    ((static_cast<bool>(ConditionExp)) || (([]() -> bool \
 		{ \
 				vex::debug::DebugLogHook::print(File, Line, Msg); \
 				return true; \
-		}()) &&  ([] { VEX_DBGBREAK(); VEXpriv_MaybeCrashOnCheck(); return false;} ())
+		}()) &&  ([] { VEX_DBGBREAK(); VEXpriv_MaybeCrashOnCheck(); return false;} ())))
 
-#define VEXpriv_DoCheckAlwaysTrigger(ConditionExp, File, Line, Msg) \
-    (!!(ConditionExp)) || ([]() -> bool \
+#define VEXpriv_DoCheck(ConditionExp, File, Line, Msg) \
+    ((static_cast<bool>(ConditionExp)) || (([]() -> bool \
 		{ \
 			static bool g_executed = false; \
 			if (!g_executed) \
@@ -88,7 +88,7 @@ extern void __cdecl __debugbreak(void);
 				return true; \
 			} \
 			return false; \
-		}()) &&  ([] { VEX_DBGBREAK(); VEXpriv_MaybeCrashOnCheck(); return false;} ())
+		}()) &&  ([] { VEX_DBGBREAK(); VEXpriv_MaybeCrashOnCheck(); return false;} ())))
 
 // toggle which checks should be enabled depending on CHECK_LEVEL
 // by default 'check' will work in debug only, 'checkRel' will also work in release,

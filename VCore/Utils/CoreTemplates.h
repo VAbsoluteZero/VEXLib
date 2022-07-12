@@ -214,7 +214,7 @@ namespace vex
     } // namespace impl
     static constexpr impl::vxSentinel k_seq_end = impl::vxSentinel{};
 
-    template <class T, bool Add = true>
+    template <class T, bool add = true>
     struct AddConst;
     template <class T>
     struct AddConst<T, true>

@@ -15,7 +15,7 @@ namespace vex
     public:
         StorageBase(tMask m, tTypeID tid) : kMask(m), kTypeID(tid){};
         virtual ~StorageBase(){};
-        virtual bool Remove(EntityHandle h) = 0;
+        virtual bool remove(EntityHandle h) = 0;
         virtual bool Clone(EntityHandle original, EntityHandle newOne) = 0;
 
         virtual std::unique_ptr<StorageBase> DuplicateSelf() = 0;
@@ -40,7 +40,7 @@ namespace vex
         }
 
         template <typename T = TComp>
-        inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> Get(EntityHandle handle)
+        inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> get(EntityHandle handle)
         {
             return _data[handle];
         }
@@ -68,7 +68,7 @@ namespace vex
             ;
             return true;
         }
-        virtual bool Remove(EntityHandle handle) override { return _data.remove(handle); }
+        virtual bool remove(EntityHandle handle) override { return _data.remove(handle); }
 
         virtual void Clear() override { _data.clear(); }
 

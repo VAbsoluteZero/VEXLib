@@ -199,7 +199,7 @@ namespace vex
         FORCE_INLINE i32 size() const noexcept { return top_idx - free_count; }
         FORCE_INLINE u32 capacity() const noexcept { return data.capacity; }
 
-        explicit Dict(u32 in_capacity = 7, vex ::Allocator in_alloc = vex::Mallocator::makeAllocatorHandle())
+        Dict(u32 in_capacity = 7, vex ::Allocator in_alloc = vex::Mallocator::makeAllocatorHandle())
             : data(in_alloc, vex::util::closestPrimeSearch(in_capacity))
         {
             refreshState();
@@ -207,6 +207,17 @@ namespace vex
             std::fill_n(data.buckets, capacity(), -1);
             auto b = ControlBlock{-1, -1};
             std::fill_n(data.blocks, capacity(), b);
+        }
+        Dict(std::initializer_list<Record> initlist, vex ::Allocator in_alloc = vex::Mallocator::makeAllocatorHandle())
+            : data(in_alloc, vex::util::closestPrimeSearch(std::size(initlist)))
+        {
+            refreshState();
+
+            std::fill_n(data.buckets, capacity(), -1);
+            auto b = ControlBlock{-1, -1};
+            std::fill_n(data.blocks, capacity(), b);
+            for (auto&& rec : initlist)
+                emplace(rec.key, rec.value);
         }
         Dict(const Dict& other) : data(other.data.allocator, other.capacity())
         {
@@ -294,7 +305,7 @@ namespace vex
         }
 
         template <typename T = TVal>
-        inline T* Any() const
+        inline T* any() const
         {
             if (size() > 0)
             {

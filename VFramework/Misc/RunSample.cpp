@@ -3,28 +3,28 @@
 #include "VFramework/VEXBase.h"
 
 
-vex::SampleRunner& vex::SampleRunner::Global()
+vex::SampleRunner& vex::SampleRunner::global()
 {
 	static SampleRunner Self;
 	return Self;
 }
 
-void vex::SampleRunner::Register(const char* key, std::function<bool()>&& func)
+void vex::SampleRunner::registerSample(const char* key, std::function<bool()>&& func)
 {
-	if (_count >= _maxSamples)
+	if (count >= max_samples)
 		return;
-	_entries[_count++] = SampleEntry{key, func};
+	entries[count++] = SampleEntry{key, func};
 }
 
-void vex::SampleRunner::RunSample(const char* key)
+void vex::SampleRunner::runSamples(const char* key)
 {
-	for (int i = 0; i < _count; ++i)
+	for (int i = 0; i < count; ++i)
 	{
-		if ((nullptr != _entries[i].Run) && !::strcmp(key, _entries[i].Key))
+		if ((nullptr != entries[i].runnable) && !::strcmp(key, entries[i].key))
 		{
 			spdlog::info(" ==> SampleRunner :: running {}   ", key);
 
-			bool bResult = _entries[i].Run();
+			bool bResult = entries[i].runnable();
 
 			if (!bResult)
 			{

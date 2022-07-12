@@ -4,6 +4,7 @@
 
 VEX_TESTSAMPLE_INLINE{"ring_test_ctor", []
     {
+        using namespace vex;
         static bool gCalledCtor = false;
         static i32 gCalledDtor = 0;
         gCalledCtor = false;
@@ -33,28 +34,23 @@ VEX_TESTSAMPLE_INLINE{"ring_test_ctor", []
 
             auto toStr = [&]() -> std::string
             {
-                return fmt::format("  {} {} {} {} {}  ", ring.AtAbsIndexUnchecked(0).Int,
-                    ring.AtAbsIndexUnchecked(1).Int, ring.AtAbsIndexUnchecked(2).Int, ring.AtAbsIndexUnchecked(3).Int,
-                    ring.AtAbsIndexUnchecked(4).Int);
+                return fmt::format("  {} {} {} {} {}  ", (ring.rawDataUnsafe() + 0)->Int,
+                    (ring.rawDataUnsafe() + 1)->Int, (ring.rawDataUnsafe() + 2)->Int,
+                    (ring.rawDataUnsafe() + 3)->Int, (ring.rawDataUnsafe() + 4)->Int);
             };
             const auto& cring = ring;
 
             for (i32 i : 5_times)
             {
-                ring.Put(i);
-                spdlog::info(
-                    "+size:{} full:{}  last_i:{} arr:{}", ring.Count(), ring.Full(), ring.TailIndex(), toStr());
-            }
-            for (auto& val : ring)
-            {
-                spdlog::info("yy+e:{} ", val.Int);
-            }
+                ring.push(i);
+                spdlog::info("+size:{} full:{}  arr:{}", ring.size(), ring.is_full(), toStr()); 
+            } 
 
             spdlog::info("---------------------------");
-            for ([[maybe_unused]]i32 i : 2_times)
+            for ([[maybe_unused]] i32 i : 2_times)
             {
-                ring.PopDiscard();
-                spdlog::info("-size:{} full:{} last_i:{} arr:{}", ring.Count(), ring.Full(), ring.TailIndex(), toStr());
+                ring.popDiscard();
+                spdlog::info("+size:{} full:{}  arr:{}", ring.size(), ring.is_full(), toStr()); 
             }
 
             for (auto& val : ring)
@@ -75,9 +71,8 @@ VEX_TESTSAMPLE_INLINE{"ring_test_ctor", []
             spdlog::info("---------------------------");
             for (i32 i : 10_times)
             {
-                ring.Put(i);
-                spdlog::info(
-                    "+size:{} full:{}  last_i:{} arr:{}", ring.Count(), ring.Full(), ring.TailIndex(), toStr());
+                ring.push(i);
+                spdlog::info("+size:{} full:{}  arr:{}", ring.size(), ring.is_full(), toStr());
             }
             spdlog::info("---------------------------");
         }

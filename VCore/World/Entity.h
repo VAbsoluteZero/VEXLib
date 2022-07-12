@@ -30,7 +30,7 @@ namespace vex
 
 	struct Entity
 	{
-		EntityHandle Handle;
+		EntityHandle handle;
 
 		tMask ComponentMask = 0;
 
@@ -46,7 +46,7 @@ namespace vex
 			ComponentMask |= (... | TTypes::Mask);
 		}
 
-		operator EntityHandle() const { return Handle; }
-		operator bool() const { return Handle.ID > 0; }
+		operator EntityHandle() const { return handle; }
+		operator bool() const { return handle.ID > 0; }
 	};
 } // namespace vex

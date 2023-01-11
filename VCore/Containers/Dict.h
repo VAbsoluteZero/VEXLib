@@ -26,19 +26,19 @@
 #include <vector>
 
 #ifdef VEXCORE_x64
-#include <VCore/Dependencies/fastmod.h>
+    #include <VCore/Dependencies/fastmod.h>
 #endif
 
 #ifndef FORCE_INLINE
-#if defined(_MSC_VER)
+    #if defined(_MSC_VER)
 
-#define FORCE_INLINE __forceinline
+        #define FORCE_INLINE __forceinline
 
-#else // defined(_MSC_VER)
+    #else // defined(_MSC_VER)
 
-#define FORCE_INLINE inline __attribute__((always_inline))
+        #define FORCE_INLINE inline __attribute__((always_inline))
 
-#endif
+    #endif
 #endif // ! FORCE_INLINE
 
 namespace vex
@@ -66,6 +66,16 @@ namespace vex
         {
             return murmur::MurmurHash3_x86_32(key.data(), (int)key.size());
         }
+    };
+    template <>
+    struct hasher<const char*>
+    {
+        inline static i32 hash(const char* key) { return vex::util::fnv1a(key); }
+    };
+    template <>
+    struct hasher<char*>
+    {
+        inline static i32 hash(char* key) { return vex::util::fnv1a(key); }
     };
     struct DSentinel
     {
@@ -130,9 +140,9 @@ namespace vex
             auto bumper_handle = bumper.makeAllocatorHandle();
             this->blocks = vexAllocTyped<TCtrlBlock>(bumper_handle, in_cap);
             this->recs = vexAllocTyped<TRecord>(bumper_handle, in_cap);
-            bool invalid = (recs == nullptr) || (blocks == nullptr) || (buckets == nullptr); 
+            bool invalid = (recs == nullptr) || (blocks == nullptr) || (buckets == nullptr);
 
-            checkAlways(!invalid, " bug: buffer could not contain all of the arrays "); 
+            checkAlways(!invalid, " bug: buffer could not contain all of the arrays ");
         }
 
         DictAllocator(const DictAllocator& other) = delete;
@@ -208,7 +218,8 @@ namespace vex
             auto b = ControlBlock{-1, -1};
             std::fill_n(data.blocks, capacity(), b);
         }
-        Dict(std::initializer_list<Record> initlist, vex ::Allocator in_alloc = vex::Mallocator::makeAllocatorHandle())
+        Dict(std::initializer_list<Record> initlist,
+            vex ::Allocator in_alloc = vex::Mallocator::makeAllocatorHandle())
             : data(in_alloc, vex::util::closestPrimeSearch(std::size(initlist)))
         {
             refreshState();
@@ -482,11 +493,14 @@ namespace vex
             friend class Dict;
         };
 
+        FORCE_INLINE DIterator begin() const noexcept { return DIterator{*this}; }; 
+
         FORCE_INLINE DIterator begin() noexcept { return DIterator{*this}; };
         FORCE_INLINE DSentinel end() const noexcept { return kEndIteratorSentinel; };
 
         template <typename T = TVal>
-        inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> operator[](const TKey& key)
+        inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> operator[](
+            const TKey& key)
         {
             i32 i = findRec(key);
 
@@ -510,9 +524,18 @@ namespace vex
 
             for (i32 i = data.buckets[bucket_index]; i >= 0; i = data.blocks[i].next)
             {
-                if (data.blocks[i].hash == hash_code)
-                    if (data.recs[i].key == key)
-                        return i;
+                if constexpr (std::is_same_v<TKey, char*> || std::is_same_v<TKey, const char*>)
+                {
+                    if (data.blocks[i].hash == hash_code)
+                        if (strcmp(data.recs[i].key, key) == 0)
+                            return i;
+                }
+                else
+                {
+                    if (data.blocks[i].hash == hash_code)
+                        if (data.recs[i].key == key)
+                            return i;
+                }
             }
             return -1;
         }

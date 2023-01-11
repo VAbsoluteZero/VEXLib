@@ -220,11 +220,11 @@ namespace vex
         {
             using RingType = typename AddConst<StaticRing<T, k_capacity, fill_forward>, Const>::type;
             // as it is used in It == End by range-for loop, it is esentialy stop condition
-            friend auto operator==(SqIterator lhs, impl::vxSentinel rhs) { return lhs.IsDone(); }
+            friend auto operator==(SqIterator lhs, impl::vxSentinel rhs) { return lhs.isDone(); }
             friend auto operator==(impl::vxSentinel lhs, SqIterator rhs) { return rhs == lhs; }
             friend auto operator!=(SqIterator lhs, impl::vxSentinel rhs) { return !(lhs == rhs); }
             friend auto operator!=(impl::vxSentinel lhs, SqIterator rhs) { return !(lhs == rhs); }
-            bool IsDone() const { return head_offset >= ring.num_elements; }
+            bool isDone() const { return head_offset >= ring.num_elements; }
 
             inline decltype(auto) operator*() const { return ring.at(head_offset); }
             inline decltype(auto) operator++()
@@ -248,11 +248,11 @@ namespace vex
         {
             using RingType = typename AddConst<StaticRing<T, k_capacity, fill_forward>, Const>::type;
             // as it is used in It == End by range-for loop, it is esentialy stop condition
-            friend auto operator==(RevIterator lhs, impl::vxSentinel rhs) { return lhs.IsDone(); }
+            friend auto operator==(RevIterator lhs, impl::vxSentinel rhs) { return lhs.isDone(); }
             friend auto operator==(impl::vxSentinel lhs, RevIterator rhs) { return rhs == lhs; }
             friend auto operator!=(RevIterator lhs, impl::vxSentinel rhs) { return !(lhs == rhs); }
             friend auto operator!=(impl::vxSentinel lhs, RevIterator rhs) { return !(lhs == rhs); }
-            bool IsDone() const { return tail_offset >= ring.num_elements; }
+            bool isDone() const { return tail_offset >= ring.num_elements; }
 
             inline decltype(auto) operator*() const { return ring.at(ring.num_elements - tail_offset - 1); }
             inline decltype(auto) operator++()

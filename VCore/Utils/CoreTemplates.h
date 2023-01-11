@@ -2,6 +2,14 @@
 #include <cstdint>
 #include <type_traits>
 
+#ifndef FORCE_INLINE
+    #if defined(_MSC_VER) 
+        #define FORCE_INLINE __forceinline 
+    #else // defined(_MSC_VER) 
+        #define FORCE_INLINE inline __attribute__((always_inline)) 
+    #endif
+#endif // ! FORCE_INLINE
+
 using u64 = uint64_t;
 using u32 = uint32_t;
 using u16 = uint16_t;
@@ -257,7 +265,7 @@ namespace vex
 
         struct SqIterator
         {
-            friend auto operator==(SqIterator lhs, impl::vxSentinel rhs) { return lhs.IsDone(); }
+            friend auto operator==(SqIterator lhs, impl::vxSentinel rhs) { return lhs.isDone(); }
             friend auto operator==(impl::vxSentinel lhs, SqIterator rhs) { return rhs == lhs; }
             friend auto operator!=(SqIterator lhs, impl::vxSentinel rhs) { return !(lhs == rhs); }
             friend auto operator!=(impl::vxSentinel lhs, SqIterator rhs) { return !(lhs == rhs); }
@@ -281,12 +289,12 @@ namespace vex
     struct Range
     {
         static constexpr const impl::vxSentinel k_seq_end = impl::vxSentinel{};
-        friend auto operator==(Range lhs, impl::vxSentinel rhs) { return lhs.IsDone(); }
+        friend auto operator==(Range lhs, impl::vxSentinel rhs) { return lhs.isDone(); }
         friend auto operator==(impl::vxSentinel lhs, Range rhs) { return rhs == lhs; }
         friend auto operator!=(Range lhs, impl::vxSentinel rhs) { return !(lhs == rhs); }
         friend auto operator!=(impl::vxSentinel lhs, Range rhs) { return !(lhs == rhs); }
 
-        bool IsDone() const { return current >= range_end; }
+        bool isDone() const { return current >= range_end; }
         inline int operator*() const { return current; }
 
         inline auto& operator++()
@@ -310,4 +318,20 @@ namespace vex
     };
 
     inline Range operator"" _times(unsigned long long x) { return Range((int)x); }
+     
+    template <typename T>
+    void zeroInit(T* arg)
+    {
+        memset(&arg, 0, sizeof(std::decay_t<T>));
+    }
+
+    template <typename T> // use with auto: auto v = makeZeroed<POD>(); RVO should make it free.
+    inline T makeZeroed() noexcept
+    {
+        T outval;
+        memset(&outval, 0, sizeof(std::decay_t<T>));
+        return outval;
+    }
 } // namespace vex
+
+#define vexZeroInit(x) vex::zeroInit(x) 

@@ -1,5 +1,5 @@
 #pragma once
-
+  
 #include <VCore/Utils/TTraits.h>
 
 namespace vex
@@ -13,12 +13,12 @@ namespace vex
             defer_guard(TFunc f) : func(f) {}
             ~defer_guard() { func(); }
         };
-    } 
-} 
+    } // namespace _internal
+} // namespace vex
 
 #define vpint_COMBINE1(X, Y) X##Y
 #define vpint_COMBINE(X, Y) vpint_COMBINE1(X, Y)
-#define defer_ vex::_internal::defer_guard vpint_COMBINE(defer_anon_, __LINE__) = [&]() 
+#define defer_ vex::_internal::defer_guard vpint_COMBINE(defer_anon_, __LINE__) = [&]()
 
 namespace vex::debug
 {
@@ -29,7 +29,7 @@ namespace vex::debug
         static void default_print(const char* file, int line, const char* msg);
         static void print(const char* file, int line, const char* msg);
     };
-} 
+} // namespace vex::debug
 //===========================================================================================================
 // VEX Check (Assert) implementation
 //===========================================================================================================
@@ -53,7 +53,7 @@ extern void __cdecl __debugbreak(void);
     #define VEX_DBGBREAK() __asm__ __volatile__("int $3\n\t")
 #elif
     #error No debug break for platform
-#endif 
+#endif
 #ifndef VEX_ABORT_ON_CHECK_FAIL
     #define VEX_ABORT_ON_CHECK_FAIL 0
 #endif

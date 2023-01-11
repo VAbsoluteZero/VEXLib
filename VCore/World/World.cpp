@@ -18,12 +18,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #include <VCore/World/World.h>
+#include <VCore/Memory/Memory.h>
 
 using namespace vex; 
 
 EntityHandle vex::World::InstantiateArchetype(const std::string& id)
 {
-	if (!Archetypes.Contains(id))
+	if (!Archetypes.contains(id))
 		return EntityHandle{};
 
 	// #todo fixme
@@ -49,14 +50,14 @@ bool vex::World::Destroy(EntityHandle handle)
 
 	for (Dict<tTypeID, UniqueHandle>::Record& kv : Storages)
 	{
-		if (0 != (kv.Value.kMask & entRef.ComponentMask))
+		if (0 != (kv.value.kMask & entRef.ComponentMask))
 		{
-			kv.Value.Get()->Remove(handle);
+			kv.value.get()->remove(handle);
 		}
 	}
 	entRef.ComponentMask = 0;
 
-	Entities[handle.ID].Handle = {};
+	Entities[handle.ID].handle = {};
 	FreeEntitySlotsStack.push_back(handle.ID);
 
 	return true;
@@ -75,7 +76,7 @@ vex::EntityHandle vex::World::CreateBlank()
 	}
 
 	Entity& ent = Entities[pos];
-	ent.Handle = EntityHandle{pos};
+	ent.handle = EntityHandle{pos};
 	return ent;
 }
 
@@ -102,9 +103,9 @@ EntityHandle vex::World::Clone(EntityHandle original)
 
 	for (auto& kv : Storages)
 	{
-		if (0 != (kv.Value.kMask & orig.ComponentMask))
+		if (0 != (kv.value.kMask & orig.ComponentMask))
 		{
-			kv.Value.Get()->Clone(original, newOne);
+			kv.value.get()->Clone(original, newOne);
 		}
 	}
 	newEnt.ComponentMask = orig.ComponentMask;

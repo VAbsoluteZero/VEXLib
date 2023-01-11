@@ -11,22 +11,22 @@ namespace vex
 		float b = 0;
 		float a = 0;
 
-		static constexpr Color Zero() { return Color(0.0f, 0.0f, 0.0f, 0.0f); }
-		static constexpr Color White() { return Color(1.f, 1.f, 1.f, 1.f); }
-		static constexpr Color Gray() { return Color{0.5f, 0.5f, 0.5f, 1.f}; }
-		static constexpr Color Black() { return Color(0.0f, 0.0f, 0.0f, 1.f); }
+		static constexpr Color zero() { return Color(0.0f, 0.0f, 0.0f, 0.0f); }
+		static constexpr Color white() { return Color(1.f, 1.f, 1.f, 1.f); }
+		static constexpr Color gray() { return Color{0.5f, 0.5f, 0.5f, 1.f}; }
+		static constexpr Color black() { return Color(0.0f, 0.0f, 0.0f, 1.f); }
 
-		static constexpr Color Red() { return Color{1.f, 0.0f, 0.0f, 1.f}; }
+		static constexpr Color red() { return Color{1.f, 0.0f, 0.0f, 1.f}; }
 
-		static constexpr Color Green() { return Color{0.0f, 1.f, 0.0f, 1.f}; }
+		static constexpr Color green() { return Color{0.0f, 1.f, 0.0f, 1.f}; }
 
-		static constexpr Color Blue() { return Color{0.0f, 0.0f, 1.f, 1.f}; }
+		static constexpr Color blue() { return Color{0.0f, 0.0f, 1.f, 1.f}; }
 
-		static constexpr Color Magenta() { return Color(1.f, 0.0f, 1.f, 1.f); }
-		static constexpr Color Yellow() { return Color{1.f, 0.90f, 0.017f, 1.f}; }
-		static constexpr Color Cyan() { return Color(0.0f, 1.f, 1.f, 1.f); }
+		static constexpr Color magenta() { return Color(1.f, 0.0f, 1.f, 1.f); }
+		static constexpr Color yellow() { return Color{1.f, 0.90f, 0.017f, 1.f}; }
+		static constexpr Color cyan() { return Color(0.0f, 1.f, 1.f, 1.f); }
 
-		constexpr float Grayscale() { return (float)(0.299 * r + 0.587 * g + 0.114 * b); }
+		constexpr float grayscale() { return (float)(0.299 * r + 0.587 * g + 0.114 * b); }
 
 		constexpr Color(float red, float green, float blue, float alpha = 1)
 		{
@@ -64,17 +64,17 @@ namespace vex
 
 		friend constexpr bool operator!=(Color lhs, Color rhs) { return !(lhs == rhs); }
 
-		static constexpr int Hash(const Color& c)
+		static constexpr int hash(const Color& c)
 		{
 			auto val = c.r + c.g * 13 + c.b * 131 + c.a * 1711;
 			return (int)val;
 		}
 	};
 
-	constexpr Color LerpUnclamped(Color first, Color second, float v)
+	constexpr Color lerpUnclamped(Color first, Color second, float v)
 	{
 		return Color(first.r + (second.r - first.r) * v, first.g + (second.g - first.g) * v,
 			first.b + (second.b - first.b) * v, first.a + (second.a - first.a) * v);
 	}
-	constexpr Color Lerp(Color first, Color second, float v) { return LerpUnclamped(first, second, ClampOne(v)); }
+	constexpr Color lerp(Color first, Color second, float v) { return lerpUnclamped(first, second, clampOne(v)); }
 } // namespace vp

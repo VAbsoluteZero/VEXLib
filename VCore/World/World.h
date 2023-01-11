@@ -42,7 +42,7 @@ namespace vex
             Entities.reserve(expectedMaxEntCount);
             Entities.resize(1); //'Null-Object'
         }
-        ~World() { Storages.Clear(); }
+        ~World() { Storages.clear(); }
 
         inline const Entity& Find(EntityHandle handle) const noexcept
         {
@@ -54,16 +54,16 @@ namespace vex
         inline bool Contains(EntityHandle handle) const noexcept
         {
             bool inValidRange = (Entities.size() > handle.ID);
-            return handle && inValidRange && Entities[handle.ID].Handle; // #todo add UID check
+            return handle && inValidRange && Entities[handle.ID].handle; // #todo add UID check
         }
 
         template <typename Callable>
         bool RegisterArchetype(const std::string& id, Callable&& builder, bool replace = false)
         {
-            if (!replace && Archetypes.Contains(id))
+            if (!replace && Archetypes.contains(id))
                 return false;
 
-            Archetypes.Emplace(id, std::forward(builder));
+            Archetypes.emplace(id, std::forward(builder));
 
             return true;
         }
@@ -85,10 +85,10 @@ namespace vex
         {
             static_assert(std::is_base_of<IGlobal, TSingle>::value, "type must inherit from global");
             const auto type_id = tinfo::typeID<TSingle>();
-            if (!Singles.Contains(type_id))
+            if (!Singles.contains(type_id))
             {
                 auto unique = std::make_unique<TSingle>();
-                IGlobal* inst = Singles.EmplaceAndGet(type_id, std::move(unique)).get();
+                IGlobal* inst = Singles.emplaceAndGet(type_id, std::move(unique)).get();
 
                 return static_cast<TSingle*>(inst);
             }
@@ -114,7 +114,7 @@ namespace vex
                 return false;
 
             ent.ComponentMask &= ~(TComp::Mask);
-            return GetStorage<TComp>().Remove(handle);
+            return GetStorage<TComp>().remove(handle);
         }
 
         template <class TComp, class... TArgs>
@@ -146,13 +146,13 @@ namespace vex
             return GetStorage<TComp>().Find(handle);
         }
         template <class TComp>
-        inline TComp& Get(EntityHandle handle)
+        inline TComp& get(EntityHandle handle)
         {
             auto& ent = Entities[handle.ID];
             if (!ent || !ent.Has<TComp>())
                 assert(false);
 
-            return GetStorage<TComp>().Get(handle);
+            return GetStorage<TComp>().get(handle);
         }
 
         template <class... TTypes>
@@ -174,7 +174,7 @@ namespace vex
             const auto mask = TComp::Mask;
             (void)mask; // debug
 
-            auto* existingHandle = Storages.TryGet(type_id);
+            auto* existingHandle = Storages.tryGet(type_id);
             if (nullptr != existingHandle)
                 return *(existingHandle->template As<Storage<TComp>>());
 
@@ -183,26 +183,26 @@ namespace vex
 
             // creates UniqueHandler in-place which should free storage upon destruction
             // like std::unique_ptr<Storage<TComp>, decltype(deleter)> would
-            Storages.Emplace(type_id, UniqueHandle{type_id, storage}); // temporary is moved-from
+            Storages.emplace(type_id, UniqueHandle{type_id, storage}); // temporary is moved-from
             return *storage;
         }
 
         StorageBase* GetStorage(tTypeID tid)
         {
-            auto* existingHandle = Storages.TryGet(tid);
+            auto* existingHandle = Storages.tryGet(tid);
             if (nullptr != existingHandle)
-                return (existingHandle->Get());
+                return (existingHandle->get());
             return nullptr;
         }
 
-        inline int Size() const { return (int)(Entities.size() - FreeEntitySlotsStack.size()); }
+        inline int k_size() const { return (int)(Entities.size() - FreeEntitySlotsStack.size()); }
 
         void Clear()
         {
             Entities.resize(1);
             FreeEntitySlotsStack.resize(0);
-            Storages.Clear();
-            Archetypes.Clear();
+            Storages.clear();
+            Archetypes.clear();
         }
 
     private:
@@ -222,7 +222,7 @@ namespace vex
                 return static_cast<T*>(_data); // no need for dynamic, types guaranteed to match
             }
 
-            StorageBase* const Get() const { return _data; }
+            StorageBase* const get() const { return _data; }
 
             UniqueHandle(tTypeID id, StorageBase* data) noexcept : kTypeID(id), kMask(data->kMask), _data(data) {}
 
@@ -252,7 +252,7 @@ namespace vex
         {
         public:
             template <typename TComp, class... TArgs>
-            inline const EntityBuilder& Add(TArgs&&... arguments)
+            inline const EntityBuilder& add(TArgs&&... arguments)
             {
                 SelfWorld->CreateComponent(EntID, std::forward<TArgs>(arguments));
                 return *this;

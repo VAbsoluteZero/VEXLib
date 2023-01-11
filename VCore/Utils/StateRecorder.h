@@ -12,7 +12,7 @@ namespace vex
 	class StateRecorder
 	{
 	public:
-		int Size() { return _snapshots.Size(); }
+		int k_size() { return _snapshots.k_size(); }
 
 		void Write(vex::World& world)
 		{

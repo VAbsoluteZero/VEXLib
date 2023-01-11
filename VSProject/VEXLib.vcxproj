@@ -28,26 +28,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>ClangCL</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -114,7 +114,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)..</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -161,6 +161,7 @@
     <ClInclude Include="..\VCore\Containers\Dict.h" />
     <ClInclude Include="..\VCore\Containers\Ring.h" />
     <ClInclude Include="..\VCore\Containers\SOAJoint.h" />
+    <ClInclude Include="..\VCore\Containers\Stack.h" />
     <ClInclude Include="..\VCore\Containers\Tuple.h" />
     <ClInclude Include="..\VCore\Containers\Union.h" />
     <ClInclude Include="..\VCore\Dependencies\fastmod.h" />
@@ -177,12 +178,16 @@
     <ClInclude Include="..\VCore\Dependencies\fmt\printf.h" />
     <ClInclude Include="..\VCore\Dependencies\fmt\ranges.h" />
     <ClInclude Include="..\VCore\Dependencies\MurmurHash3.h" />
+    <ClInclude Include="..\VCore\Memory\Memory.h" />
     <ClInclude Include="..\VCore\Systems\ISystem.h" />
     <ClInclude Include="..\VCore\Systems\SystemManager.h" />
     <ClInclude Include="..\VCore\Utils\CoreTemplates.h" />
     <ClInclude Include="..\VCore\Utils\HashUtils.h" />
     <ClInclude Include="..\VCore\Utils\StateRecorder.h" />
+    <ClInclude Include="..\VCore\Utils\TTraits.h" />
     <ClInclude Include="..\VCore\Utils\TypeInfoUtils.h" />
+    <ClInclude Include="..\VCore\Utils\VMath.h" />
+    <ClInclude Include="..\VCore\Utils\VUtilsBase.h" />
     <ClInclude Include="..\VCore\World\ComponentBase.h" />
     <ClInclude Include="..\VCore\World\Entity.h" />
     <ClInclude Include="..\VCore\World\IGlobal.h" />
@@ -192,10 +197,18 @@
   <ItemGroup>
     <ClCompile Include="..\VCore\Dependencies\fmt\format.cc" />
     <ClCompile Include="..\VCore\Dependencies\fmt\os.cc" />
+    <ClCompile Include="..\VCore\Memory\Memory.cpp" />
     <ClCompile Include="..\VCore\Utils\TypeInfoUtils .cpp" />
+    <ClCompile Include="..\VCore\Utils\VUtilsBase.cpp" />
     <ClCompile Include="..\VCore\World\ComponentBase.cpp" />
     <ClCompile Include="..\VCore\World\Storage.cpp" />
     <ClCompile Include="..\VCore\World\World.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\.clang-format" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\VCore\Extras\vcore.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

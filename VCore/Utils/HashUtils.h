@@ -9,7 +9,7 @@
 #if INTPTR_MAX == INT64_MAX
 #define VEXCORE_x64
 #elif INTPTR_MAX == INT32_MAX
-#define ECSCORE_x32
+#define VEXCORE_x32
 #else
 #error Unknown ptr size, abort
 #endif
@@ -33,7 +33,7 @@ namespace vex
 
 		static constexpr int gPrimeSize = sizeof(gPrimeNumbers) / sizeof(int);
 
-		inline constexpr int FindUpperBound(const int* a, int n, int x)
+		inline constexpr int findUpperBound(const int* a, int n, int x)
 		{
 			if (x > a[n - 1])
 				return a[n - 1];
@@ -56,7 +56,7 @@ namespace vex
 			return a[iter];
 		}
 
-		inline constexpr int ClosestPrime(int value)
+		inline constexpr int closestPrime(int value)
 		{
 			for (int i = 0; i < gPrimeSize; i++)
 			{
@@ -68,9 +68,9 @@ namespace vex
 			return gPrimeNumbers[gPrimeSize - 1];
 		}
 
-		inline constexpr int ClosestPrimeSearch(int value) { return FindUpperBound(gPrimeNumbers, gPrimeSize, value); }
+		inline constexpr int closestPrimeSearch(int value) { return findUpperBound(gPrimeNumbers, gPrimeSize, value); }
 
-		inline int RandomRange(int fromInc, int toExc)
+		inline int randomRange(int fromInc, int toExc)
 		{
 			static std::random_device rd;
 			static std::mt19937 mt(rd());
@@ -94,11 +94,11 @@ namespace vex
 			return (int)hash;
 		}
 
-		static inline int Hash(char* c, int sz) { return (int)murmur::MurmurHash3_x86_32(c, sz); }
+		static inline int hash(char* c, int sz) { return (int)murmur::MurmurHash3_x86_32(c, sz); }
 
 		struct SHash
 		{
-			static inline int Hash(const std::string& str)
+			static inline int hash(const std::string& str)
 			{
 #ifdef ECSCORE_x64
 				return (int)murmur::MurmurHash3_x86_32(str.data(), (int)str.size());
@@ -109,15 +109,15 @@ namespace vex
 		};
 		struct SHash_STD
 		{
-			static inline int Hash(const std::string& str) { return (int)std::hash<std::string>{}(str); }
+			static inline int hash(const std::string& str) { return (int)std::hash<std::string>{}(str); }
 		};
 		struct SHash_FNV1a
 		{
-			static inline int Hash(const std::string& str) { return fnv1a(str); }
+			static inline int hash(const std::string& str) { return fnv1a(str); }
 		};
 		struct SHash_MURMUR
 		{
-			static inline int Hash(const std::string& str)
+			static inline int hash(const std::string& str)
 			{
 				return (int)murmur::MurmurHash3_x86_32(str.data(), (int)str.size());
 			}

@@ -20,17 +20,17 @@ namespace vex
 		explicit EntityHandle(int id) : ID(id) {}
 		explicit EntityHandle(tIDType id) : ID(id) {}
 		operator bool() const { return ID > 0; }
-		inline int Hash() const { return ID; }
+		inline int hash() const { return ID; }
 	};
 
 	struct EntHandleHasher
 	{
-		static int Hash(const EntityHandle& h) { return h.Hash(); }
+		static int hash(const EntityHandle& h) { return h.hash(); }
 	};
 
 	struct Entity
 	{
-		EntityHandle Handle;
+		EntityHandle handle;
 
 		tMask ComponentMask = 0;
 
@@ -46,7 +46,7 @@ namespace vex
 			ComponentMask |= (... | TTypes::Mask);
 		}
 
-		operator EntityHandle() const { return Handle; }
-		operator bool() const { return Handle.ID > 0; }
+		operator EntityHandle() const { return handle; }
+		operator bool() const { return handle.ID > 0; }
 	};
 } // namespace vex

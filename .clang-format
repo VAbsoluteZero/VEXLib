@@ -26,7 +26,7 @@ BreakBeforeInheritanceComma: false
 BreakInheritanceList: BeforeColon
 BreakBeforeTernaryOperators: true 
 BreakStringLiterals: true
-ColumnLimit: 120 
+ColumnLimit: 110 
 CompactNamespaces: true 
 ConstructorInitializerIndentWidth: 4
 ContinuationIndentWidth: 4
@@ -46,7 +46,7 @@ IncludeCategories:
   - Regex:           '^<.*>'
     Priority:        2 
 IndentCaseLabels: true
-IndentPPDirectives: None
+IndentPPDirectives: BeforeHash
 IndentWidth: 4
 IndentWrappedFunctionNames: false 
 KeepEmptyLinesAtTheStartOfBlocks: false

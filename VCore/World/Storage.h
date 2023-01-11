@@ -15,7 +15,7 @@ namespace vex
     public:
         StorageBase(tMask m, tTypeID tid) : kMask(m), kTypeID(tid){};
         virtual ~StorageBase(){};
-        virtual bool Remove(EntityHandle h) = 0;
+        virtual bool remove(EntityHandle h) = 0;
         virtual bool Clone(EntityHandle original, EntityHandle newOne) = 0;
 
         virtual std::unique_ptr<StorageBase> DuplicateSelf() = 0;
@@ -32,7 +32,7 @@ namespace vex
     class Storage final : public StorageBase
     {
     public:
-        inline TComp* Find(EntityHandle handle) const noexcept { return _data.TryGet(handle); }
+        inline TComp* Find(EntityHandle handle) const noexcept { return _data.tryGet(handle); }
 
         static inline TComp* Find(const Storage<TComp>& store, EntityHandle handle) noexcept
         {
@@ -40,7 +40,7 @@ namespace vex
         }
 
         template <typename T = TComp>
-        inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> Get(EntityHandle handle)
+        inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> get(EntityHandle handle)
         {
             return _data[handle];
         }
@@ -55,22 +55,22 @@ namespace vex
         inline TComp& Emplace(EntityHandle handle, TArgs&&... arguments)
         {
             // create or replace
-            return _data.EmplaceAndGet(handle, std::forward<TArgs>(arguments)...);
+            return _data.emplaceAndGet(handle, std::forward<TArgs>(arguments)...);
         }
 
         // Inherited via StorageBase
         virtual bool Clone(EntityHandle original, EntityHandle newOne) override
         {
-            if (!_data.Contains(original))
+            if (!_data.contains(original))
                 return false;
-            TComp& ncomp = *_data.TryGet(original);
-            _data.Emplace(newOne, ncomp);
+            TComp& ncomp = *_data.tryGet(original);
+            _data.emplace(newOne, ncomp);
             ;
             return true;
         }
-        virtual bool Remove(EntityHandle handle) override { return _data.Remove(handle); }
+        virtual bool remove(EntityHandle handle) override { return _data.remove(handle); }
 
-        virtual void Clear() override { _data.Clear(); }
+        virtual void Clear() override { _data.clear(); }
 
         struct DataEnumerable
         {

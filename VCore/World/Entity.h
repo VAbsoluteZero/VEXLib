@@ -25,7 +25,8 @@ namespace vex
 
 	struct EntHandleHasher
 	{
-		static int hash(const EntityHandle& h) { return h.hash(); }
+        static int hash(const EntityHandle& h) { return h.hash(); }
+        static bool is_equal(const EntityHandle& a, const EntityHandle& b) { return a == b; }
 	};
 
 	struct Entity

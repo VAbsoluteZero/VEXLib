@@ -209,8 +209,8 @@ namespace vex::traits
 
         template <std::size_t I>
         using ArgTypesT = typename std::decay_t<typename ArgTypes<I, TTypeList<Args...>>::type>;
-    };
-} // namespace vex::traits
+    }; 
+} // namespace vex::traits 
 
 namespace vex
 {

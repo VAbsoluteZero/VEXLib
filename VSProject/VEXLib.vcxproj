@@ -148,7 +148,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(ProjectDir)..</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -165,18 +165,6 @@
     <ClInclude Include="..\VCore\Containers\Tuple.h" />
     <ClInclude Include="..\VCore\Containers\Union.h" />
     <ClInclude Include="..\VCore\Dependencies\fastmod.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\chrono.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\color.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\compile.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\core.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\format-inl.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\format.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\locale.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\os.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\ostream.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\posix.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\printf.h" />
-    <ClInclude Include="..\VCore\Dependencies\fmt\ranges.h" />
     <ClInclude Include="..\VCore\Dependencies\MurmurHash3.h" />
     <ClInclude Include="..\VCore\Memory\Memory.h" />
     <ClInclude Include="..\VCore\Systems\ISystem.h" />
@@ -195,8 +183,6 @@
     <ClInclude Include="..\VCore\World\World.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\VCore\Dependencies\fmt\format.cc" />
-    <ClCompile Include="..\VCore\Dependencies\fmt\os.cc" />
     <ClCompile Include="..\VCore\Memory\Memory.cpp" />
     <ClCompile Include="..\VCore\Utils\TypeInfoUtils .cpp" />
     <ClCompile Include="..\VCore\Utils\VUtilsBase.cpp" />

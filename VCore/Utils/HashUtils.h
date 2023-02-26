@@ -3,7 +3,7 @@
  * MIT LICENSE
  * Copyright (c) 2019 Vladyslav Joss
  */
-#include <cstdint>
+#include <VCore/Utils/CoreTemplates.h>
 #include <random>
 
 #if INTPTR_MAX == INT64_MAX
@@ -111,17 +111,6 @@ namespace vex
 		static constexpr std::size_t fnv_prime = 16777619u;
         static constexpr std::size_t fnv_offset_basis = 2166136261u;
 
-		static inline constexpr int fnv1a(std::string const& text)
-		{
-			std::size_t hash = fnv_offset_basis;
-			for (std::string::const_iterator it = text.begin(), end = text.end(); it != end; ++it)
-			{
-				hash ^= *it;
-				hash *= fnv_prime;
-			}
-
-			return (int)hash;
-        }
         static inline constexpr int fnv1a(const char* text)
         {
             std::size_t hash = fnv_offset_basis;
@@ -160,7 +149,7 @@ namespace vex
 #ifdef ECSCORE_x64
 				return (int)murmur::MurmurHash3_x86_32(str.data(), (int)str.size());
 #else
-				return fnv1a(str);
+                return fnv1a((u8*)str.data(), str.length());
 #endif
 			}
 		};
@@ -170,7 +159,7 @@ namespace vex
 		};
 		struct SHash_FNV1a
 		{
-			static inline int hash(const std::string& str) { return fnv1a(str); }
+            static inline int hash(const std::string& str) { return fnv1a((u8*)str.data(), str.length()); }
 		};
 		struct SHash_MURMUR
 		{

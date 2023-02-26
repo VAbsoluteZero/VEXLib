@@ -68,13 +68,15 @@ namespace vex
 		{
 			auto val = c.r + c.g * 13 + c.b * 131 + c.a * 1711;
 			return (int)val;
-		}
-	};
-
-	constexpr Color lerpUnclamped(Color first, Color second, float v)
-	{
-		return Color(first.r + (second.r - first.r) * v, first.g + (second.g - first.g) * v,
-			first.b + (second.b - first.b) * v, first.a + (second.a - first.a) * v);
-	}
-	constexpr Color lerp(Color first, Color second, float v) { return lerpUnclamped(first, second, clampOne(v)); }
+        }
+        constexpr Color lerpUnclamped(Color first, Color second, float v)
+        {
+            return Color(first.r + (second.r - first.r) * v, first.g + (second.g - first.g) * v,
+                first.b + (second.b - first.b) * v, first.a + (second.a - first.a) * v);
+        }
+        constexpr Color lerp(Color first, Color second, float v)
+        {
+            return lerpUnclamped(first, second, clampOne(v));
+        } 
+	}; 
 } // namespace vp

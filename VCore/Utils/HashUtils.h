@@ -68,7 +68,36 @@ namespace vex
 			return gPrimeNumbers[gPrimeSize - 1];
 		}
 
-		inline constexpr int closestPrimeSearch(int value) { return findUpperBound(gPrimeNumbers, gPrimeSize, value); }
+        inline constexpr bool isPrime(int val)
+        {
+			// works for 1 too.
+            if ((val & 1) != 0)
+            {
+                int stop = (int)std::sqrt(val);
+                for (int div = 3; div <= stop; div += 2)
+                {
+                    if ((val % div) == 0)
+                        return false;
+                }
+                return true;
+            }
+            return (val == 2);
+        }
+
+		inline constexpr int closestPrimeSearch(int value)
+		{ 
+			[[unlikely]]
+			if (value > gPrimeNumbers[gPrimeSize - 1]) 
+			{
+                for (int i = (value | 1); i < INT32_MAX; i += 2)
+                {
+                    if (isPrime(value))
+                        return i;
+                }
+			}
+
+			return findUpperBound(gPrimeNumbers, gPrimeSize, value); 
+		}
 
 		inline int randomRange(int fromInc, int toExc)
 		{

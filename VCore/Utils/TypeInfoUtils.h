@@ -2,8 +2,7 @@
 /*
  * MIT LICENSE
  * Copyright (c) 2019 Vladyslav Joss
- */
-#include <cassert>
+ */ 
 #include <cstdint>
 
 namespace vex

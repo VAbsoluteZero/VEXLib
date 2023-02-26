@@ -124,7 +124,7 @@ namespace vex
             auto& ent = Entities[handle.ID];
             if (!ent)
             {
-                assert(false && "null entity cannot own components");
+                checkAlways(false, "null entity cannot own components");
                 return *store.Find(EntityHandle{});
             }
             else if (ent.Has<TComp>())
@@ -150,7 +150,7 @@ namespace vex
         {
             auto& ent = Entities[handle.ID];
             if (!ent || !ent.Has<TComp>())
-                assert(false);
+                checkAlways_(false);
 
             return GetStorage<TComp>().get(handle);
         }

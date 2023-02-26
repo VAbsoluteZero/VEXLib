@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm_common.h>
+#include <glm/ext/matrix_transform.hpp> 
 
 using v2f = glm::vec2;
 using v3f = glm::vec3;
@@ -16,6 +17,9 @@ using v4u32 = glm::u32vec4;
 
 using mtx3 = glm::mat3x3;
 using mtx4 = glm::mat4x4;
+
+static constexpr mtx3 mtx3_identity = glm::identity<mtx3>();
+static constexpr mtx4 mtx4_identity = glm::identity<mtx4>();
 
 static constexpr v2f v2f_zero = v2f{0, 0};
 static constexpr v2f v2f_one = v2f{1.0f, 1.0f};
@@ -68,6 +72,20 @@ namespace vex
     {
         v = v < 0 ? 0 : v;
         return v > 1 ? 1 : v;
+    }
+
+    // std::lerp is 2x slower in debug, same speed in release
+    template <typename T>
+    constexpr T lerp(T v0, T v1, float t)
+    {
+        return (1 - t) * v0 + t * v1;
+    }
+
+    template <typename T>
+    constexpr T lerpClamped(T v0, T v1, float t)
+    {
+        float ct = clampOne(t);
+        return (1 - ct) * v0 + ct * v1;
     }
 
     inline float nearEqual(float val1, float val2, float eps = epsilon) /*fabs is not constexpr =( */

@@ -6,8 +6,8 @@
 #include <VCore/Containers/Union.h>
 #include <VCore/Utils/CoreTemplates.h>
 #include <VCore/Utils/TTraits.h>
-#include <assert.h>
-
+#include <cmath>
+#include <string.h>
 
 namespace vex
 {
@@ -23,31 +23,46 @@ namespace vex
         virtual ~IAllocResource(){};
     };
 
-    // Actually it is an allocator handle, 'allocator' is just shorter.
-    // IAllocResource is what actually does the thing.
-    struct Allocator
-    {
-        IAllocResource* dyn_alloc = nullptr;
-
-        inline u8* alloc(u64 size, u64 al) { return dyn_alloc->alloc(size, al); }
-        inline void dealloc(void* ptr) { return dyn_alloc->dealloc(ptr); }
-    };
-
     struct Mallocator final : public IAllocResource
     {
         using Self = Mallocator;
 
-        static Mallocator* getMallocator()
+        static inline Mallocator* getMallocator()
         {
             static Mallocator dyn_mal;
             return &dyn_mal;
         };
-        static Allocator makeAllocatorHandle() { return {getMallocator()}; }
 
         u8* alloc(u64 sz, u64 al) override { return (u8*)::malloc(sz); }
         void dealloc(void* ptr) override { ::free(ptr); }
     };
 
+    // It is an allocator HANDLE
+    // IAllocResource is what actually does the thing.
+    // if dyn_alloc is nullptr then malloc/free are used.
+    struct Allocator
+    {
+        IAllocResource* dyn_alloc = nullptr;
+
+        FORCE_INLINE u8* alloc(u64 size, u64 al)
+        {
+            if (nullptr != dyn_alloc)
+                return dyn_alloc->alloc(size, al);
+            return (u8*)::malloc(size);
+        }
+        FORCE_INLINE void dealloc(void* ptr)
+        {
+            if (nullptr != ptr)
+            {
+                if (nullptr != dyn_alloc)
+                    dyn_alloc->dealloc(ptr);
+                else
+                    ::free(ptr);
+            }
+        }
+    };
+
+    static inline Allocator makeAllocatorHandle() { return {Mallocator::getMallocator()}; }
     static inline Allocator gMallocator = {Mallocator::getMallocator()};
 
     // does not own buffer
@@ -56,26 +71,31 @@ namespace vex
     {
         using Self = BumpAllocatorBase;
 
-        u8* buffer_base = nullptr; // does not own the buffer
-        u32 top = 0;
-        u32 capacity = 0;
+        struct State
+        {
+            u8* buffer_base = nullptr; // does not own the buffer
+            u32 capacity = 0;
+            u32 top = 0;
+        } state;
 
         Allocator makeAllocatorHandle() { return {this}; }
 
+        BumpAllocatorBase() = default;
+        BumpAllocatorBase(State in_state) : state(in_state) {}
         BumpAllocatorBase(u8* in_buffer, u32 buffer_size)
         {
-            buffer_base = in_buffer;
-            capacity = buffer_size;
+            state.buffer_base = in_buffer;
+            state.capacity = buffer_size;
         }
 
         inline u8* alloc(u64 in_size, u64 al) override
         {
             Self* self = this;
-            auto al_offset = al - (self->top % al);
+            auto al_offset = al - (self->state.top % al);
             in_size += al_offset;
 
-            u64 new_top = self->top + in_size;
-            if (new_top >= self->capacity)
+            u64 new_top = self->state.top + in_size;
+            if (new_top >= self->state.capacity)
             {
                 if constexpr (k_abort_on_failure)
                 {
@@ -84,26 +104,25 @@ namespace vex
                 return nullptr;
             }
 
-            u8* mem = (self->buffer_base + self->top + al_offset);
+            u8* mem = (self->state.buffer_base + self->state.top + al_offset);
 
-            assert(new_top <= (u32)(-1));
-            self->top = (u32)new_top;
+            self->state.top = (u32)new_top;
 
             return mem;
         }
 
         inline void dealloc(void* ptr) override {} // no-op
 
-        void reset() { top = 0; }
+        void reset() { state.top = 0; }
     };
 
     using BumpAllocatorDbg = BumpAllocatorBase<true>;
     using BumpAllocator = BumpAllocatorBase<false>;
 
     template <u32 buffer_size>
-    struct FixedBufferAllocator final : public IAllocResource
+    struct InlineBufferAllocator final : public IAllocResource
     {
-        using Self = FixedBufferAllocator;
+        using Self = InlineBufferAllocator;
 
         u8 buffer[buffer_size];
         BumpAllocator bump{buffer, buffer_size};
@@ -111,8 +130,8 @@ namespace vex
 
         Allocator makeAllocatorHandle() { return {this}; }
 
-        FixedBufferAllocator() { fallback_allocator = {Mallocator::getMallocator()}; }
-        FixedBufferAllocator(Allocator fallback) : fallback_allocator(fallback) {}
+        InlineBufferAllocator() { fallback_allocator = {Mallocator::getMallocator()}; }
+        InlineBufferAllocator(Allocator fallback) : fallback_allocator(fallback) {}
 
         u8* alloc(u64 in_size, u64 al) override
         {
@@ -132,6 +151,130 @@ namespace vex
                 return;
             }
             bump.dealloc(ptr);
+        }
+
+        void reset() { bump.reset(); }
+    };
+
+    struct ExpandableBufferAllocator final : public IAllocResource
+    {
+        using Self = ExpandableBufferAllocator;
+        struct BufferHeader
+        {
+            BufferHeader* prev = nullptr;
+            u32 size = 0;
+        };
+
+        static constexpr u32 header_size = (u32)sizeof(BufferHeader);
+
+        struct State
+        {
+            // allocator that gets actual buffers from system or other buffers
+            Allocator outer_allocator = {Mallocator::getMallocator()};
+            // bump allocator handles tmp allocations in a fast way
+            BumpAllocatorBase<false> bump;
+            u32 total_reserved = 0;
+            float grow_mult = 1.5f;
+        } state;
+
+        Allocator makeAllocatorHandle() { return {this}; }
+
+        ExpandableBufferAllocator(){};
+        ExpandableBufferAllocator(u32 start_size, State in_state) : state(in_state) { makeNode(start_size); };
+        ExpandableBufferAllocator(u32 start_size, float growth_factor = 1.5f) //
+        {
+            state.grow_mult = growth_factor;
+            makeNode(start_size);
+        }
+
+        u8* alloc(u64 in_size, u64 al) override
+        {
+            auto& bump = state.bump;
+            for (u8 i = 0; i < 2; ++i)
+            {
+                if (u8* rptr = bump.alloc(in_size, al); rptr != nullptr)
+                {
+                    return rptr;
+                }
+
+                u64 grow = static_cast<u64>(std::ceil(bump.state.capacity * state.grow_mult));
+                u64 new_size = grow > in_size ? grow : in_size;
+
+                makeNode(new_size);
+            }
+
+            checkAlwaysRel(false, "should never happen, possibly outer_allocator is at fault.");
+            return nullptr;
+        }
+
+        void dealloc(void* ptr) override
+        {
+            // noop
+        }
+         
+        void release()
+        {
+            auto& bump = state.bump;
+            auto& outer_allocator = state.outer_allocator;
+
+            u8* current_buffer = bump.state.buffer_base;
+            BufferHeader* node = reinterpret_cast<BufferHeader*>(current_buffer);
+            while (node != nullptr && node->prev != nullptr)
+            {
+                BufferHeader* next_to_dealoc = node->prev;
+                // will free whole buffer as header has same adress as buffer[0]
+                outer_allocator.dealloc(node);
+                node = next_to_dealoc;
+            }
+
+            if (node != nullptr)
+            {
+                bump = BumpAllocatorBase<false>{reinterpret_cast<u8*>(node), node->size};
+                bump.state.top = header_size;
+                state.total_reserved = node->size;
+
+                node->prev = nullptr;
+                memset(bump.state.buffer_base + header_size, 0xff, node->size - header_size);
+            }
+        }
+
+        void releaseAndReserveUsedSize()
+        {
+            auto& bump = state.bump;
+            auto& outer_allocator = state.outer_allocator;
+
+            BufferHeader* node = reinterpret_cast<BufferHeader*>(bump.state.buffer_base);
+            while (node != nullptr)
+            {
+                BufferHeader* next_to_dealoc = node->prev;
+                // will free whole buffer as header has same adress as buffer[0]
+                outer_allocator.dealloc(node);
+                node = next_to_dealoc;
+            }
+            bump.state = {};
+
+            makeNode(std::exchange(state.total_reserved, 0));
+        }
+
+    private:
+        void makeNode(u32 buffer_size)
+        {
+            auto& bump = state.bump;
+            auto& outer_allocator = state.outer_allocator;
+
+            const auto sz = header_size + buffer_size;
+            checkAlwaysRel(buffer_size >= 32, "buffer must be at least 32 bytes long.");
+            u8* bytes = outer_allocator.alloc(sz, 16);
+
+            BufferHeader* prev = reinterpret_cast<BufferHeader*>(bytes);
+            // null by default
+            new (prev) BufferHeader{reinterpret_cast<BufferHeader*>(bump.state.buffer_base), sz};
+
+            check_(prev != prev->prev);
+
+            bump = BumpAllocatorBase<false>{bytes, sz};
+            bump.state.top = header_size;
+            state.total_reserved += sz;
         }
     };
 
@@ -174,11 +317,11 @@ namespace vex
     // };
 
 } // namespace vex
- 
+
 
 static inline u8* vexAlloc(vex::Allocator& allocator, u64 size_bytes, u64 al = (u64)alignof(std::max_align_t))
 {
-    return allocator.dyn_alloc->alloc(size_bytes, al);
+    return allocator.alloc(size_bytes, al);
 }
 template <typename T>
 static inline T* vexAllocTyped(vex::Allocator& allocator, u64 num, u64 al = (u64)alignof(T))
@@ -186,7 +329,8 @@ static inline T* vexAllocTyped(vex::Allocator& allocator, u64 num, u64 al = (u64
     return (T*)vexAlloc(allocator, num * sizeof(T), al);
 }
 template <typename T>
-static inline void vexAllocTypedOutParam(vex::Allocator& allocator, T*& out_ptr, u64 num, u64 al = (u64)alignof(T))
+static inline void vexAllocTypedOutParam(
+    vex::Allocator& allocator, T*& out_ptr, u64 num, u64 al = (u64)alignof(T))
 {
     out_ptr = vexAlloc(allocator, num * sizeof(T), al);
 }

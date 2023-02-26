@@ -3,7 +3,7 @@
 	<!--=============================================================================-->
 	<Type Name="vex::Stack&lt;*&gt;">
 		<DisplayString Condition="first == 0">empty</DisplayString>
-		<DisplayString>{{size={len} capacity={cap} data={first} allocator={allocator};}</DisplayString>
+		<DisplayString>{{size={len} capacity={cap} data={first,[len]na} allocator={allocator};}</DisplayString>
 		<Expand>
 			<Item Name="[size]" ExcludeView="simple">len</Item>
 			<Item Name="[capacity]" ExcludeView="simple">cap</Item>
@@ -16,7 +16,7 @@
 	</Type>  
 	<!--=============================================================================-->
 	<Type Name="vex::Ring&lt;*&gt;">
-		<DisplayString>{{len={len} cap={cap} data={first, len};}</DisplayString>
+		<DisplayString>{{len={len} cap={cap} data={first, [len]na};}</DisplayString>
 		<Expand>
 			<Item Name="[size ]" ExcludeView="simple">len</Item>
 			<Item Name="[capacity]" ExcludeView="simple">cap</Item>
@@ -26,6 +26,18 @@
 			</ArrayItems>
 		</Expand>
 	</Type>
+    <!--=============================================================================-->
+    <Type Name="vex::Buffer&lt;*&gt;">
+        <DisplayString>{{len={len} cap={cap} data={first, [len]na};}}</DisplayString>
+        <Expand>
+            <Item Name="[size ]" ExcludeView="simple">len</Item>
+            <Item Name="[capacity]" ExcludeView="simple">cap</Item>
+            <ArrayItems>
+                <Size>len</Size>
+                <ValuePointer>first</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
 	<!--=============================================================================-->
     <Type Name="vex::Dict&lt;*,*&gt;">
         <DisplayString>{{capacity={data.capacity} size={top_idx - free_count} ;}</DisplayString>

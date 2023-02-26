@@ -115,7 +115,7 @@ namespace vex
 
         explicit DictAllocator(vex::Allocator in_alloc, u32 in_cap) noexcept : allocator(in_alloc)
         {
-            checkAlways_(in_cap > 0);
+            checkLethal(in_cap > 0, "invalid capacity");
 
             capacity = in_cap;
             constexpr size_t size_list[3] = {sizeof(TBuckets), sizeof(TCtrlBlock), sizeof(TRecord)};
@@ -127,22 +127,22 @@ namespace vex
             }
 
             // #todo write guard block
-            auto memory_region = (u8*)in_alloc.alloc(total_size, alignof(TBuckets));
+            auto memory_region = (u8*)in_alloc.alloc(total_size, alignof(TRecord));
             buckets = reinterpret_cast<TBuckets*>(memory_region);
-            checkAlways_(buckets);
+            checkLethal(buckets, "failure of allocator");
 
             // 'buckets' should be at the start and considered owning ptr
             u32 new_top = sizeof(TBuckets) * in_cap;
 
             vex::BumpAllocator bumper{memory_region, total_size};
-            bumper.top = new_top;
+            bumper.state.top = new_top;
 
             auto bumper_handle = bumper.makeAllocatorHandle();
             this->blocks = vexAllocTyped<TCtrlBlock>(bumper_handle, in_cap);
             this->recs = vexAllocTyped<TRecord>(bumper_handle, in_cap);
             bool invalid = (recs == nullptr) || (blocks == nullptr) || (buckets == nullptr);
 
-            checkAlways(!invalid, " bug: buffer could not contain all of the arrays ");
+            checkLethal(!invalid, " bug: buffer could not contain all of the arrays ");
         }
 
         DictAllocator(const DictAllocator& other) = delete;
@@ -151,7 +151,8 @@ namespace vex
         {
             if (this != &other)
             {
-                allocator.dealloc(buckets);
+                if (buckets)
+                    allocator.dealloc(buckets);
                 capacity = other.capacity;
 
                 buckets = other.buckets;
@@ -209,7 +210,7 @@ namespace vex
         FORCE_INLINE i32 size() const noexcept { return top_idx - free_count; }
         FORCE_INLINE u32 capacity() const noexcept { return data.capacity; }
 
-        Dict(u32 in_capacity = 7, vex ::Allocator in_alloc = vex::Mallocator::makeAllocatorHandle())
+        Dict(u32 in_capacity = 7, vex ::Allocator in_alloc = {})
             : data(in_alloc, vex::util::closestPrimeSearch(in_capacity))
         {
             refreshState();
@@ -218,8 +219,7 @@ namespace vex
             auto b = ControlBlock{-1, -1};
             std::fill_n(data.blocks, capacity(), b);
         }
-        Dict(std::initializer_list<Record> initlist,
-            vex ::Allocator in_alloc = vex::Mallocator::makeAllocatorHandle())
+        Dict(std::initializer_list<Record> initlist, vex ::Allocator in_alloc = {})
             : data(in_alloc, vex::util::closestPrimeSearch(std::size(initlist)))
         {
             refreshState();
@@ -276,10 +276,13 @@ namespace vex
             return *this;
         }
 
+        Dict(Dict&& other) { *this = std::move(other); }
+
         Dict& operator=(Dict&& other)
         {
             if (this != &other)
             {
+                this->clear();
                 data = std::move(other.data);
 
                 top_idx = other.top_idx;
@@ -426,7 +429,7 @@ namespace vex
             free_idx = -1;
             top_idx = 0;
 
-            if constexpr (std::is_trivially_copyable<Record>::value)
+            if constexpr (std::is_trivially_destructible<Record>::value)
             {
                 // basically do nothing
             }
@@ -450,16 +453,15 @@ namespace vex
             FORCE_INLINE bool advance()
             {
                 i32 count = owner_map.size();
-                while (index < (count - 1))
-                    [[likely]]
+                while (index < (count - 1)) [[likely]]
+                {
+                    index++;
+                    const auto hash = owner_map.data.blocks[index].hash;
+                    if (hash >= 0) [[likely]]
                     {
-                        index++;
-                        const auto hash = owner_map.data.blocks[index].hash;
-                        if (hash >= 0) [[likely]]
-                        {
-                            return true;
-                        }
+                        return true;
                     }
+                }
 
                 index = owner_map.size() + 1;
                 return false;
@@ -493,7 +495,7 @@ namespace vex
             friend class Dict;
         };
 
-        FORCE_INLINE DIterator begin() const noexcept { return DIterator{*this}; }; 
+        FORCE_INLINE DIterator begin() const noexcept { return DIterator{*this}; };
 
         FORCE_INLINE DIterator begin() noexcept { return DIterator{*this}; };
         FORCE_INLINE DSentinel end() const noexcept { return kEndIteratorSentinel; };
@@ -541,11 +543,13 @@ namespace vex
         }
 
 
-        static constexpr float grow_factor = 1.6f;
         CombinedStorage data;
-
+        // end of used space (0 <= top_idx < cap), grows when andding element and
+        // [0, top_idx] area all filled up
         i32 top_idx = 0;
+        // 'hole' in the used space
         i32 free_idx = 0;
+        // num of 'holes' in the used space
         i32 free_count = 0;
 
 #ifdef VEXCORE_x64
@@ -570,7 +574,10 @@ namespace vex
         void grow()
         {
             using namespace vex::util;
-            i32 new_size = closestPrimeSearch((i32)(capacity() * grow_factor + 1));
+            const auto new_cap = data.capacity + data.capacity / 2; // grows by factor of 1.5
+            i32 new_size = closestPrimeSearch((i32)(new_cap + 1));
+
+            // checkAlwaysRel(new_size == data.capacity, "max number of elements reached");
 
             CombinedStorage new_data(data.allocator, new_size);
             RawBuffer<Record> new_recs = new_data.recordsBuffer();

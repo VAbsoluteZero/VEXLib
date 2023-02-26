@@ -4,13 +4,12 @@
  * Copyright (c) 2019 Vladyslav Joss
  */
 
-#include <assert.h>
-
-#include "VCore/Utils/CoreTemplates.h"
 #include "VCore/Memory/Memory.h"
+#include "VCore/Utils/CoreTemplates.h"
+#include "VCore/Utils/VUtilsBase.h"
 
 namespace vex
-{  
+{
     template <typename ValType>
     struct Stack
     {
@@ -20,7 +19,17 @@ namespace vex
         i32 len = 0;
         i32 cap = 0;
 
-        Stack(Allocator in_allocator) { allocator = in_allocator; }
+        explicit Stack(Allocator in_allocator, i32 in_cap) : allocator(in_allocator), cap(in_cap)
+        {
+            first = vexAllocTyped<ValType>(allocator, cap, alignof(ValType));
+            check_(first);
+        }
+        explicit Stack(Allocator in_allocator) { allocator = in_allocator; }
+        ~Stack()
+        {
+            if (first)
+                allocator.dealloc(first);
+        }
 
         auto size() const -> i32 { return len; }
         auto capacity() const -> i32 { return cap; }
@@ -42,7 +51,7 @@ namespace vex
         ValType& peekUnchecked() const { return *(peek()); }
 
         auto pop() -> Union<ValType, Error>
-        { 
+        {
             ValType* top_val = peek();
 
             if (nullptr == top_val)
@@ -59,10 +68,10 @@ namespace vex
         void grow()
         {
             const u32 new_cap = (u32)((cap > 0 ? (cap * grow_factor) : 5.0f));
-            // realistically there would be realloc here
+            // should try realloc
             auto new_first = vexAllocTyped<ValType>(allocator, new_cap, alignof(ValType));
             cap = new_cap;
-            if (first == nullptr)
+            if (nullptr == first)
             {
                 first = new_first;
                 return;

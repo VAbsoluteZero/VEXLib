@@ -1,5 +1,5 @@
 #pragma once
-  
+
 #include <VCore/Utils/TTraits.h>
 
 namespace vex
@@ -22,7 +22,7 @@ namespace vex
 
 namespace vex::debug
 {
-    using tLogFuncPtr = auto (*)(const char*, int, const char*) -> void;
+    using tLogFuncPtr = auto(*)(const char*, int, const char*) -> void;
     struct DebugLogHook
     {
         static tLogFuncPtr log_override;
@@ -141,4 +141,9 @@ extern void __cdecl __debugbreak(void);
         VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
     #define checkAlwaysParanoid(ConditionExpr, Msg) \
         VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg)
+#endif
+
+#if VEX_CHECK_LEVEL > 0
+    #define checkLethal(ConditionExpr, Msg) \
+    (VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg) ||([] {std::abort(); return false;} ()))
 #endif

@@ -58,10 +58,7 @@ namespace vex
             return (int)std::hash<TKey>{}(key);
         }
 
-        inline static bool is_equal(const TKey& a, const TKey& b)
-        {
-            return a == b;
-        }
+        inline static bool is_equal(const TKey& a, const TKey& b) { return a == b; }
     };
     template <>
     struct KeyHashEq<int>
@@ -88,7 +85,7 @@ namespace vex
         {
             return a == b;
         }
-    }; 
+    };
 #endif
 
     template <>
@@ -137,8 +134,11 @@ namespace vex
         static const size_t alignment = vex::maxAlignOf<TBuckets, TCtrlBlock, TRecord>();
 
     public:
-        DictAllocator() = delete;
+        struct TTagNull
+        {
+        };
 
+        explicit DictAllocator(TTagNull) noexcept {}
         explicit DictAllocator(vex::Allocator in_alloc, u32 in_cap) noexcept : allocator(in_alloc)
         {
             checkLethal(in_cap > 0, "invalid capacity");
@@ -312,8 +312,8 @@ namespace vex
 
             return *this;
         }
-
-        Dict(Dict&& other) { *this = std::move(other); }
+        // in this case we dont want to do any allocation, TTagNull selects empty ctor for storage
+        Dict(Dict&& other) : data(CombinedStorage::TTagNull()) { *this = std::move(other); }
 
         Dict& operator=(Dict&& other)
         {

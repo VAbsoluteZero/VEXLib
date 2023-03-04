@@ -18,9 +18,10 @@
  * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+#include <VCore/Containers/Tuple.h>
+#include <VCore/Utils/CoreTemplates.h>
 #include <VCore/World/IGlobal.h>
 #include <VCore/World/Storage.h>
-#include <VCore/Utils/CoreTemplates.h>
 
 #include <functional>
 #include <string>
@@ -28,225 +29,171 @@
 namespace vex
 {
     class World;
-    using tfArchetypeBuilder = std::function<bool(World&, EntityHandle)>;
-    // #todo add fluent-interface wrapper to allow world.Add(...).Add(...)Add..LogState();
+    using FnEntityConstructor = std::function<bool(World&, EntityHandle)>;
+
+    struct StoragePtr
+    {
+        const CompIdType type_id;
+        const CompMaskType mod_mask;
+
+        template <typename T>
+        T* const castTo() const
+        {
+            return static_cast<T*>(storage); // no need for dynamic, types guaranteed to match
+        }
+        StorageBase* const get() const { return storage; }
+        StoragePtr(CompIdType id, StorageBase* storage) noexcept
+            : type_id(id), mod_mask(storage->mod_mask), storage(storage)
+        {
+        }
+        StoragePtr(StoragePtr&& other) noexcept : type_id(other.type_id), mod_mask(other.mod_mask)
+        {
+            *this = std::move(other);
+        }
+
+        StoragePtr(const StoragePtr&) = delete;
+        StoragePtr& operator=(StoragePtr&& other) noexcept;
+        ~StoragePtr()
+        {
+            delete storage;
+            storage = nullptr;
+        }
+
+    private:
+        StorageBase* storage = nullptr;
+    };
+
     class World
     {
     public:
-        template <size_t N>
-        friend class StateRecorder;
+        Dict<std::string, FnEntityConstructor> constructors;
+        Dict<CompIdType, StoragePtr> storages;
 
-        World(int expectedMaxEntCount = 64)
-        {
-            FreeEntitySlotsStack.reserve((expectedMaxEntCount / 2));
-            Entities.reserve(expectedMaxEntCount);
-            Entities.resize(1); //'Null-Object'
-        }
-        ~World() { Storages.clear(); }
+        std::vector<i32> free_list;
+        std::vector<EntityHandle> ent_handles;
+        std::vector<EntComponentSet> component_sets;
 
-        inline const Entity& Find(EntityHandle handle) const noexcept
+        World(int expectedMaxEntCount = 1028)
         {
-            if (handle.ID >= Entities.size())
-                return Entities[0]; // null-entity instead of nullptr
-            return Entities[handle.ID];
-        }
+            free_list.reserve((expectedMaxEntCount / 2));
+            ent_handles.reserve(expectedMaxEntCount);
+            ent_handles.resize(1); //'Null-Object'
 
-        inline bool Contains(EntityHandle handle) const noexcept
-        {
-            bool inValidRange = (Entities.size() > handle.ID);
-            return handle && inValidRange && Entities[handle.ID].handle; // #todo add UID check
+            component_sets.reserve(expectedMaxEntCount);
+            component_sets.resize(1); //'Null-Object'
         }
 
-        template <typename Callable>
-        bool RegisterArchetype(const std::string& id, Callable&& builder, bool replace = false)
+        FORCE_INLINE bool contains(EntityHandle handle)
         {
-            if (!replace && Archetypes.contains(id))
-                return false;
-
-            Archetypes.emplace(id, std::forward(builder));
-
-            return true;
+            return handle.id < ent_handles.size() && (handle == ent_handles[handle.id]);
         }
-
-        EntityHandle InstantiateArchetype(const std::string& id);
-
-        bool Destroy(EntityHandle handle);
-
-
-        // name is just for debug, it is Not an ID
-        EntityHandle CreateBlank();
-        EntityHandle CreateBlank(const char* name);
-
-        EntityHandle Clone(EntityHandle original);
-
-        // default constructs if not present
-        template <class TSingle>
-        TSingle* const GetGlobal()
-        {
-            static_assert(std::is_base_of<IGlobal, TSingle>::value, "type must inherit from global");
-            const auto type_id = tinfo::typeID<TSingle>();
-            if (!Singles.contains(type_id))
-            {
-                auto unique = std::make_unique<TSingle>();
-                IGlobal* inst = Singles.emplaceAndGet(type_id, std::move(unique)).get();
-
-                return static_cast<TSingle*>(inst);
-            }
-
-            return static_cast<TSingle*>(Singles[type_id].get());
-        }
-
-        // * Component operations
-        // Get first component of type;
         template <class TComp>
-        inline TComp* const First()
+        inline TComp* const find(EntityHandle handle)
         {
-            return GetStorage<TComp>().First();
-        }
-
-        template <class TComp>
-        inline bool RemoveComponent(EntityHandle handle)
-        {
-            // if Entity does not have component
-            // remove would do nothing - so check Has<T> is not needed
-            auto& ent = Entities[handle.ID];
-            if (!ent)
-                return false;
-
-            ent.ComponentMask &= ~(TComp::Mask);
-            return GetStorage<TComp>().remove(handle);
-        }
-
-        template <class TComp, class... TArgs>
-        inline TComp& CreateComponent(EntityHandle handle, TArgs&&... arguments)
-        {
-            Storage<TComp>& store = GetStorage<TComp>();
-            auto& ent = Entities[handle.ID];
-            if (!ent)
-            {
-                checkAlways(false, "null entity cannot own components");
-                return *store.Find(EntityHandle{});
-            }
-            else if (ent.Has<TComp>())
-            {
-                // assert? return existing? #todo figure out
-            }
-
-            ent.ComponentMask |= TComp::Mask;
-
-            return store.Emplace(handle, std::forward<TArgs>(arguments)...);
-        }
-
-        template <class TComp>
-        inline TComp* const Find(EntityHandle handle)
-        {
-            auto& ent = Entities[handle.ID];
-            if (!ent || !ent.Has<TComp>())
+            auto& comp_set = component_sets[handle.id];
+            if (!contains(handle) || !comp_set.has<TComp>())
                 return nullptr;
-            return GetStorage<TComp>().Find(handle);
+            return getStorage<TComp>().find(handle);
         }
         template <class TComp>
         inline TComp& get(EntityHandle handle)
         {
-            auto& ent = Entities[handle.ID];
-            if (!ent || !ent.Has<TComp>())
-                checkAlways_(false);
+            auto& comp_set = component_sets[handle.id];
+            if (!contains(handle) || !comp_set.has<TComp>())
+                checkAlwaysRel(false, "component does not exist");
 
-            return GetStorage<TComp>().get(handle);
+            return getStorage<TComp>().get(handle);
         }
 
         template <class... TTypes>
-        inline std::tuple<TTypes*...> FindTuple(EntityHandle handle)
+        inline Tuple<TTypes*...> findComponents(EntityHandle handle)
         {
-            auto& ent = Entities[handle.ID];
-
-            if (!ent)
+            if (!contains(handle))
                 return {};
 
-            return std::make_tuple<TTypes*...>(GetStorage<TTypes>().Find(handle)...);
+            return Tuple<TTypes*...>(getStorage<TTypes>().find(handle)...);
         }
-        // ! component operations
 
         template <class TComp>
-        Storage<TComp>& GetStorage() noexcept
+        Storage<TComp>& getStorage() noexcept
         {
-            auto type_id = tinfo::typeID<TComp>();
-            const auto mask = TComp::Mask;
-            (void)mask; // debug
-
-            auto* existingHandle = Storages.tryGet(type_id);
-            if (nullptr != existingHandle)
-                return *(existingHandle->template As<Storage<TComp>>());
+            auto type_id = TComp::type_id;
+            auto* base_ptr = storages.tryGet(type_id);
+            if (nullptr != base_ptr)
+                return *(base_ptr->template castTo<Storage<TComp>>());
 
             // #todo add CompTraits to set default storage cap per type
             Storage<TComp>* storage = new Storage<TComp>();
-
-            // creates UniqueHandler in-place which should free storage upon destruction
-            // like std::unique_ptr<Storage<TComp>, decltype(deleter)> would
-            Storages.emplace(type_id, UniqueHandle{type_id, storage}); // temporary is moved-from
+            storages.emplace(type_id, StoragePtr{type_id, storage});
             return *storage;
         }
 
-        StorageBase* GetStorage(tTypeID tid)
+        EntityHandle createBlank();
+        EntityHandle createBlank(const char* name);
+        bool destroy(EntityHandle handle);
+        inline int size() const { return (int)(ent_handles.size() - free_list.size()); }
+
+        void clear()
         {
-            auto* existingHandle = Storages.tryGet(tid);
-            if (nullptr != existingHandle)
-                return (existingHandle->get());
-            return nullptr;
+            component_sets.resize(1);
+            free_list.resize(0);
+            storages.clear();
+            constructors.clear();
         }
 
-        inline int k_size() const { return (int)(Entities.size() - FreeEntitySlotsStack.size()); }
-
-        void Clear()
+        template <class TComp>
+        inline bool remove(EntityHandle handle)
         {
-            Entities.resize(1);
-            FreeEntitySlotsStack.resize(0);
-            Storages.clear();
-            Archetypes.clear();
+            if (!contains(handle))
+                return false;
+
+            component_sets[handle.id].bitset.unset<TComp>();
+            return getStorage<TComp>().remove(handle);
+        }
+        template <class TComp, class... TArgs>
+        inline TComp& add(EntityHandle handle, TArgs&&... arguments)
+        {
+            Storage<TComp>& store = getStorage<TComp>();
+
+            if (!contains(handle))
+            {
+                checkLethal(false, "null entity cannot own components");
+            }
+            else if (component_sets[handle.id].has<TComp>())
+            {
+                // assert? return existing? #todo figure out
+            }
+
+            component_sets[handle.id].setFlags<TComp>(); 
+            return store.Emplace(handle, std::forward<TArgs>(arguments)...);
         }
 
-    private:
-        struct UniqueHandle
+        template <typename Callable>
+        bool registerCtor(const std::string& id, Callable&& builder, bool replace = false)
         {
-            using tDataPtr = StorageBase*;
-#ifndef NDEBUG
-            static constexpr int kDebugGuard = 100200300;
-            int DebugGuard = kDebugGuard;
-#endif
-            tTypeID const kTypeID;
-            tMask const kMask;
+            if (!replace && constructors.contains(id))
+                return false;
 
-            template <typename T>
-            T* const As() const
+            constructors.emplace(id, std::forward(builder));
+
+            return true;
+        } 
+        EntityHandle createWithCtor(const std::string& id)
+        {
+            if (!constructors.contains(id))
+                return EntityHandle{};
+
+            EntityHandle newOne = createBlank();
+            bool created = constructors[id](*this, newOne);
+            if (!created)
             {
-                return static_cast<T*>(_data); // no need for dynamic, types guaranteed to match
+                destroy(newOne); 
+                return EntityHandle{};
             }
+            return newOne;
+        }
 
-            StorageBase* const get() const { return _data; }
-
-            UniqueHandle(tTypeID id, StorageBase* data) noexcept : kTypeID(id), kMask(data->kMask), _data(data) {}
-
-            UniqueHandle(UniqueHandle&& other) noexcept : kTypeID(other.kTypeID), kMask(other.kMask)
-            {
-                *this = std::move(other);
-            }
-
-            UniqueHandle(const UniqueHandle&) = delete;
-            UniqueHandle& operator=(UniqueHandle&& other) noexcept;
-            ~UniqueHandle();
-
-        private:
-            tDataPtr _data = nullptr;
-        };
-
-        // #todo allocate world as chunk
-
-        Dict<tTypeID, UniqueHandle> Storages;             // <- components
-        Dict<std::string, tfArchetypeBuilder> Archetypes; // <- archetype builders
-        Dict<tTypeID, std::unique_ptr<IGlobal>> Singles;  // <- non-entity singletones
-        std::vector<i32> FreeEntitySlotsStack;            // <- removed entity index will go here, so we pack 'em tight
-        std::vector<Entity> Entities;
-
+        // extras:
     public:
         class EntityBuilder
         {
@@ -254,144 +201,25 @@ namespace vex
             template <typename TComp, class... TArgs>
             inline const EntityBuilder& add(TArgs&&... arguments)
             {
-                SelfWorld->CreateComponent(EntID, std::forward<TArgs>(arguments));
+                owner_world->add(ent_id, std::forward<TArgs>(arguments));
                 return *this;
             }
             template <typename TComp, class... TArgs>
-            inline const auto& AddAndGet(TArgs&&... arguments)
+            inline const auto& addAndGet(TArgs&&... arguments)
             {
-                return SelfWorld->CreateComponent(EntID, std::forward<TArgs...>(arguments)...);
+                return owner_world->add(ent_id, std::forward<TArgs...>(arguments)...);
             }
-            const EntityHandle EntID;
-
-            operator EntityHandle() const { return EntID; }
+            const EntityHandle ent_id;
 
         private:
-            EntityBuilder(World* owner, EntityHandle h) : EntID(h), SelfWorld(owner) {}
+            EntityBuilder(World* owner, EntityHandle h) : ent_id(h), owner_world(owner) {}
             EntityBuilder() = delete;
-            World* SelfWorld = nullptr;
+            World* owner_world;
             friend class World;
         };
-
-        EntityBuilder CreateBlankBuilder(const char* name = nullptr) { return EntityBuilder(this, CreateBlank(name)); }
-
-    public:
-        // Enumerators
-        struct EntityEnumerable
+        EntityBuilder entityBuilder(const char* name = nullptr)
         {
-            auto begin() noexcept { return _owner.Entities.begin(); }
-            auto end() noexcept { return _owner.Entities.end(); }
-
-            auto cbegin() const noexcept { return _owner.Entities.cbegin(); }
-            auto cend() const noexcept { return _owner.Entities.cend(); }
-
-            auto size() const noexcept { return _owner.Entities.size(); }
-
-            ~EntityEnumerable() = default;
-            EntityEnumerable& operator=(const EntityEnumerable& other) = delete;
-            EntityEnumerable(EntityEnumerable&&) = delete;
-            EntityEnumerable(const EntityEnumerable&) = delete;
-
-        private:
-            friend class World;
-            EntityEnumerable(World& owner) : _owner(owner) {}
-
-            World& _owner;
-        };
-
-        EntityEnumerable GetEntityEnumerator() { return *this; }
-
-        template <typename... TTypes>
-        struct Iterator
-        {
-            inline bool Advance()
-            {
-                i32 count = _owner.Entities.size();
-                // -1 since there is ++_index in body immidiately after
-                while (_index < (count - 1))
-                {
-                    _index++;
-                    bool hasAll = _owner.Entities[_index].Has<TTypes...>();
-                    if (hasAll)
-                        return true;
-                }
-
-                _index = _owner.Entities.size() + 1;
-                return false;
-            }
-
-            template <size_t... I>
-            inline std::tuple<TTypes&...> Current(std::index_sequence<I...>)
-            {
-                auto& ent = _owner.Entities[_index];
-                return std::tuple<TTypes&...>(*Storage<TTypes>::Find(std::get<I>(_storages), ent)...);
-            }
-
-            inline std::tuple<TTypes&...> operator*() { return Current(std::index_sequence_for<TTypes...>{}); }
-
-            inline auto& operator++()
-            {
-                Advance();
-                return *this;
-            }
-
-            inline bool IsDone() const { return (_owner.Entities.size()) <= _index; }
-
-            EntityHandle CurrentHandle() const noexcept { return EntityHandle{_index}; }
-
-            friend auto operator!=(Iterator lhs, DSentinel rhs) { return !(lhs == rhs); }
-            friend auto operator!=(DSentinel lhs, Iterator rhs) { return !(lhs == rhs); }
-
-            friend auto operator==(Iterator lhs, DSentinel rhs) { return lhs.IsDone(); }
-            friend auto operator==(DSentinel lhs, Iterator rhs) { return rhs == lhs; }
-
-            ~Iterator() = default;
-            Iterator& operator=(const Iterator& other) = default;
-            Iterator(Iterator&&) = default;
-            Iterator(const Iterator&) = default;
-
-        private:
-            Iterator(World& owner) : _owner(owner), _storages(_owner.GetStorage<TTypes>()...)
-            {
-                Advance(); // find correct 1st
-            }
-            int _index = 0; // 0th component is null-object
-            World& _owner;
-            std::tuple<Storage<TTypes>&...> _storages;
-            friend class World;
-        };
-
-        template <>
-        struct Iterator<>
-        {
-        };
-
-        template <typename... TTypes>
-        struct CompEnumerable
-        {
-            auto begin() noexcept { return Iterator<TTypes...>(OwnerWorld); }
-            constexpr auto end() noexcept { return kEndIteratorSentinel; }
-
-            ~CompEnumerable() = default;
-            CompEnumerable& operator=(const CompEnumerable& other) = delete;
-            CompEnumerable(CompEnumerable&&) = delete;
-            CompEnumerable(const CompEnumerable&) = delete;
-
-        private:
-            friend class World;
-            CompEnumerable(World& owner) : OwnerWorld(owner) {}
-            World& OwnerWorld;
-        };
-
-        template <typename... TTypes>
-        CompEnumerable<TTypes...> GetCompEnum()
-        {
-            return *this;
+            return EntityBuilder(this, this->createBlank(name));
         }
-
-        template <>
-        struct CompEnumerable<>
-        {
-        };
     };
 } // namespace vex

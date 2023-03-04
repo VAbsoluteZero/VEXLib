@@ -141,21 +141,21 @@ namespace std
     template <auto I, class... Types>
     constexpr decltype(auto) get(vex::Tuple<Types...>& arg)
     {
-        return arg.template Get<I>();
+        return arg.template get<I>();
     }
     template <auto I, class... Types>
     constexpr decltype(auto) get(const vex::Tuple<Types...>& arg)
     {
-        return arg.template Get<I>();
+        return arg.template get<I>();
     }
     template <auto I, class... Types>
     constexpr decltype(auto) get(vex::Tuple<Types...>&& arg)
     {
-        return arg.template Get<I>();
+        return arg.template get<I>();
     }
     template <auto I, class... Types>
     constexpr decltype(auto) get(const vex::Tuple<Types...>&& arg)
     {
-        return arg.template Get<I>();
+        return arg.template get<I>();
     }
 } // namespace std

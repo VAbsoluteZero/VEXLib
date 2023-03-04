@@ -27,7 +27,7 @@ namespace vex::union_impl
     template <typename TSelf, typename... Types>
     struct UnionBase
     {
-        static_assert(sizeof...(Types) <= 16, "too many types in Union");
+        static_assert(sizeof...(Types) <= 32, "too many types in Union");
         static constexpr auto size_of_storage = vex::maxSizeOf<Types...>();
         static constexpr auto alignment = vex::maxAlignOf<Types...>();
         static constexpr auto type_cnt = sizeof...(Types);

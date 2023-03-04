@@ -8,46 +8,56 @@
 
 namespace vex
 {
-	using tIDType = int16_t;
+    using EntId = u16;
 
-	struct EntityHandle
-	{
-		tIDType ID = 0;
+    struct EntityHandle
+    {
+        EntId id = 0;
+        u16 gen = 0; 
 
-		EntityHandle() = default;
-		~EntityHandle() = default;
-		EntityHandle(const EntityHandle&) = default;
-		explicit EntityHandle(int id) : ID(id) {}
-		explicit EntityHandle(tIDType id) : ID(id) {}
-		operator bool() const { return ID > 0; }
-		inline int hash() const { return ID; }
-	};
+        FORCE_INLINE constexpr operator bool() const { return id > 0; }
+        FORCE_INLINE constexpr bool operator==(EntityHandle b) const
+        {
+            return id == b.id && gen == b.gen;
+        }
+    };
 
-	struct EntHandleHasher
-	{
-        static int hash(const EntityHandle& h) { return h.hash(); }
-        static bool is_equal(const EntityHandle& a, const EntityHandle& b) { return a == b; }
-	};
+    struct EntHandleHasher
+    {
+        static FORCE_INLINE constexpr int hash(const EntityHandle& h) { return h.id; }
+        static FORCE_INLINE constexpr bool is_equal(const EntityHandle& a, const EntityHandle& b)
+        {
+            return a == b;
+        }
+    };
 
-	struct Entity
-	{
-		EntityHandle handle;
+    struct EntComponentSet
+    {
+        CompBitset bitset;
 
-		tMask ComponentMask = 0;
-
-		template <class... TTypes>
-		inline bool Has() const noexcept
-		{
-			tMask buf = (... | TTypes::Mask);
-			return (ComponentMask & buf) == buf;
-		}
-		template <class... TTypes>
-		inline void SetComponentFlag() const noexcept
-		{
-			ComponentMask |= (... | TTypes::Mask);
-		}
-
-		operator EntityHandle() const { return handle; }
-		operator bool() const { return handle.ID > 0; }
-	};
+        template <class... TArgs>
+        inline bool has() const noexcept
+        {
+            return bitset.has<TArgs...>();
+        } 
+        inline bool has(auto a, auto b) const noexcept
+        {
+            return bitset.has(a, b);
+        }
+        template <class... TArgs>
+        inline void setFlags() noexcept
+        {
+            bitset.set<TArgs...>();
+        }
+        template <class... TArgs>
+        inline void unsetFlags() noexcept
+        {
+            bitset.unset<TArgs...>();
+        }
+         
+        FORCE_INLINE constexpr bool operator==(EntComponentSet b) const
+        {
+            return bitset == b.bitset;
+        }
+    };
 } // namespace vex

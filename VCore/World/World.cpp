@@ -17,122 +17,73 @@
  * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-#include <VCore/World/World.h>
+#include "World.h"
+
 #include <VCore/Memory/Memory.h>
+#include <VCore/World/World.h>
 
-using namespace vex; 
+using namespace vex;
 
-EntityHandle vex::World::InstantiateArchetype(const std::string& id)
+bool vex::World::destroy(EntityHandle handle)
 {
-	if (!Archetypes.contains(id))
-		return EntityHandle{};
+    if (!contains(handle))
+        return false;
 
-	// #todo fixme
-	EntityHandle newOne = CreateBlank("-of archetype-");
-	// Entity& ent = Entities[newOne.ID];
+    auto& comp_set = component_sets[handle.id];
+    for (Dict<CompIdType, StoragePtr>::Record& kv : storages)
+    {
+        if (comp_set.has(kv.key, kv.value.mod_mask))
+        {
+            kv.value.get()->remove(handle);
+        }
+    }
+    comp_set.bitset = {};
 
-	bool created = Archetypes[id](*this, newOne);
-	if (!created)
-	{
-		Destroy(newOne);
+    ent_handles[handle.id] = {.id = 0, .gen = handle.gen++};
+    free_list.push_back(handle.id);
 
-		return EntityHandle{};
-	}
-	return newOne;
+    return true;
 }
-
-bool vex::World::Destroy(EntityHandle handle)
+vex::EntityHandle vex::World::createBlank()
 {
-	if (!Contains(handle))
-		return false;
+    EntId pos = (EntId)ent_handles.size();
+    if (free_list.size() > 0)
+    {
+        pos = free_list.back();
+        free_list.pop_back();
 
-	auto& entRef = Entities[handle.ID];
+        auto& ent = ent_handles[pos];
+        ent.id = EntId{pos};
+        ent.gen++;
+        return ent;
+    }
+    else
+    {
+        ent_handles.push_back({});
+        component_sets.push_back({});
 
-	for (Dict<tTypeID, UniqueHandle>::Record& kv : Storages)
-	{
-		if (0 != (kv.value.kMask & entRef.ComponentMask))
-		{
-			kv.value.get()->remove(handle);
-		}
-	}
-	entRef.ComponentMask = 0;
-
-	Entities[handle.ID].handle = {};
-	FreeEntitySlotsStack.push_back(handle.ID);
-
-	return true;
+        ent_handles[pos] = {pos, 0}; 
+        return ent_handles[pos];
+    }
 }
-vex::EntityHandle vex::World::CreateBlank()
+vex::EntityHandle vex::World::createBlank(const char* name)
 {
-	int pos = (int)Entities.size();
-	if (FreeEntitySlotsStack.size() > 0)
-	{
-		pos = FreeEntitySlotsStack.back();
-		FreeEntitySlotsStack.pop_back();
-	}
-	else
-	{
-		Entities.push_back({});
-	}
-
-	Entity& ent = Entities[pos];
-	ent.handle = EntityHandle{pos};
-	return ent;
+    auto ent = createBlank();
+    if (name != nullptr)
+    {
+        DebugName nameStruct;
+        nameStruct.name = name;
+        add<DebugName>(ent, nameStruct);
+    }
+    return ent;
 }
-
-vex::EntityHandle vex::World::CreateBlank(const char* name)
+vex::StoragePtr& vex::StoragePtr::operator=(vex::StoragePtr&& other) noexcept
 {
-	auto ent = CreateBlank();
-	if (name != nullptr)
-	{
-		DebugName nameStruct;
-		nameStruct.Name = name;
-		CreateComponent<DebugName>(ent, nameStruct);
-	}
-	return ent;
-}
+    if (this != &other)
+    {
+        storage = other.storage;
+        other.storage = nullptr;
+    }
 
-EntityHandle vex::World::Clone(EntityHandle original)
-{
-	if (!Contains(original))
-		return EntityHandle{};
-
-	Entity& orig = Entities[original];
-	EntityHandle newOne = CreateBlank("1");
-	Entity& newEnt = Entities[newOne];
-
-	for (auto& kv : Storages)
-	{
-		if (0 != (kv.value.kMask & orig.ComponentMask))
-		{
-			kv.value.get()->Clone(original, newOne);
-		}
-	}
-	newEnt.ComponentMask = orig.ComponentMask;
-
-	return newOne;
-}
-
-vex::World::UniqueHandle::~UniqueHandle()
-{
-#ifndef NDEBUG
-	if (kDebugGuard == DebugGuard)
-		delete _data;
-	else
-	{
-		__debugbreak();
-	}
-#endif // ! NDEBUG
-}
-
-vex::World::UniqueHandle& vex::World::UniqueHandle::operator=(vex::World::UniqueHandle&& other) noexcept
-{
-	if (this != &other)
-	{
-		_data = other._data;
-
-		other._data = nullptr;
-	}
-
-	return *this;
+    return *this;
 }

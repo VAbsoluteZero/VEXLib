@@ -14,7 +14,7 @@ namespace vex
     {
     public:
         StorageBase(CompMaskType m, CompIdType tid, Allocator in_alloc)
-            : mod_mask(m), type_id(tid), allocator(in_alloc){};
+            : allocator(in_alloc), mod_mask(m), type_id(tid){};
         virtual ~StorageBase(){};
         virtual bool remove(EntityHandle h) = 0;
         virtual bool clone(EntityHandle original, EntityHandle newOne) = 0;

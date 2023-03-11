@@ -2,19 +2,19 @@
 /*
  * MIT LICENSE
  * Copyright (c) 2019 Vladyslav Joss
- */ 
- 
+ */
+
 #include <VCore/Containers/Union.h>
-#include <VCore/Utils/VUtilsBase.h>
 #include <VCore/Utils/CoreTemplates.h>
+#include <VCore/Utils/VUtilsBase.h>
 
 namespace vex
-{ 
+{
     /*
         Simple Static Ring Buffer, meant mainly for PODs.
-        fill_forward == true means that buffer will grow from 0 to k_capacity, otherwise k_capacity to 0.
-        This means that fill_forward is better for insert, !fill_forward - for iteration
-        (you can still iterate unordered even with fill_forward).
+        fill_forward == true means that buffer will grow from 0 to k_capacity, otherwise k_capacity
+       to 0. This means that fill_forward is better for insert, !fill_forward - for iteration (you
+       can still iterate unordered even with fill_forward).
     */
     template <class T, i32 k_capacity, bool fill_forward = false>
     class StaticRing
@@ -61,12 +61,12 @@ namespace vex
 
     public:
         using ValueType = T;
-        static constexpr bool k_fill_forward = fill_forward; 
+        static constexpr bool k_fill_forward = fill_forward;
         static constexpr i32 k_grow_dir = fill_forward ? 1 : -1;
 
         static_assert(k_capacity > 2, //
             "k_capacity must be >= 2, otherwise ring just doesnt make any sense.");
- 
+
         inline auto is_full() const -> bool { return k_capacity == num_elements; }
         inline auto is_empty() const -> bool { return 0 == num_elements; }
         inline auto size() const -> i32 { return num_elements; }
@@ -84,7 +84,7 @@ namespace vex
         template <typename TFwd>
         inline T& push(TFwd&& newItem)
         {
-            first_ind = growIndex(first_ind); 
+            first_ind = growIndex(first_ind);
             T* curItem = item(first_ind);
             if (num_elements < k_capacity)
             {
@@ -218,7 +218,8 @@ namespace vex
         template <bool Const>
         struct SqIterator
         {
-            using RingType = typename AddConst<StaticRing<T, k_capacity, fill_forward>, Const>::type;
+            using RingType =
+                typename AddConst<StaticRing<T, k_capacity, fill_forward>, Const>::type;
             // as it is used in It == End by range-for loop, it is esentialy stop condition
             friend auto operator==(SqIterator lhs, impl::vxSentinel rhs) { return lhs.isDone(); }
             friend auto operator==(impl::vxSentinel lhs, SqIterator rhs) { return rhs == lhs; }
@@ -246,7 +247,8 @@ namespace vex
         template <bool Const>
         struct RevIterator
         {
-            using RingType = typename AddConst<StaticRing<T, k_capacity, fill_forward>, Const>::type;
+            using RingType =
+                typename AddConst<StaticRing<T, k_capacity, fill_forward>, Const>::type;
             // as it is used in It == End by range-for loop, it is esentialy stop condition
             friend auto operator==(RevIterator lhs, impl::vxSentinel rhs) { return lhs.isDone(); }
             friend auto operator==(impl::vxSentinel lhs, RevIterator rhs) { return rhs == lhs; }
@@ -254,7 +256,10 @@ namespace vex
             friend auto operator!=(impl::vxSentinel lhs, RevIterator rhs) { return !(lhs == rhs); }
             bool isDone() const { return tail_offset >= ring.num_elements; }
 
-            inline decltype(auto) operator*() const { return ring.at(ring.num_elements - tail_offset - 1); }
+            inline decltype(auto) operator*() const
+            {
+                return ring.at(ring.num_elements - tail_offset - 1);
+            }
             inline decltype(auto) operator++()
             {
                 tail_offset += 1;
@@ -265,7 +270,7 @@ namespace vex
             i32 tail_offset = 0;
 
             RevIterator(const RevIterator&) = default;
-            RevIterator(RingType& ring) : ring(ring) {}
+            RevIterator(RingType& in_ring) : ring(in_ring) {}
         };
         auto rbegin() noexcept { return RevIterator<false>{*this}; };
         auto rend() const noexcept { return k_seq_end; };
@@ -309,7 +314,7 @@ namespace vex
                     cur = wrapAroundIndexIfNeeded(cur);
                 }
             }
-        } 
+        }
 
         inline T* item(i32 i) { return &data_typed[i]; }
         inline const T* item(i32 i) const { return &data_typed[i]; }

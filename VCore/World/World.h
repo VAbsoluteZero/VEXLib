@@ -201,7 +201,7 @@ namespace vex
             template <typename TComp, class... TArgs>
             inline const EntityBuilder& add(TArgs&&... arguments)
             {
-                owner_world->add(ent_id, std::forward<TArgs>(arguments));
+                owner_world->add(ent_id, std::forward<TArgs...>(arguments...));
                 return *this;
             }
             template <typename TComp, class... TArgs>

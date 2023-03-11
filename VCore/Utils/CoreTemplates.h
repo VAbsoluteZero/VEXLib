@@ -1,6 +1,7 @@
 #pragma once
 #include <cstdint>
 #include <type_traits>
+#include <utility>
 
 #ifndef FORCE_INLINE
     #if defined(_MSC_VER) 
@@ -53,20 +54,7 @@ namespace vex
     struct Error
     {
     };
-} // namespace vex
-
-namespace std // needed to avoid <tuple> deps while using str bindings
-{
-    template <class _Tuple>
-    struct tuple_size
-    {
-    };
-
-    template <size_t _Index, class _Tuple>
-    struct tuple_element
-    {
-    };
-} // namespace std
+} // namespace vex 
 
 namespace vex
 {
@@ -180,6 +168,19 @@ namespace vex::traits
     {
     };
 
+    template <std::size_t I, typename T>
+    struct TypeListEnun;
+    template <std::size_t I, typename Head, typename... Tail>
+    struct TypeListEnun<I, TTypeList<Head, Tail...>> : TypeListEnun<I - 1, TTypeList<Tail...>>
+    {
+        typedef Head type;
+    };
+    template <typename Head, typename... Tail>
+    struct TypeListEnun<0, TTypeList<Head, Tail...>>
+    {
+        typedef Head type;
+    };
+
     template <typename T>
     struct FunctorTraits : public FunctorTraits<decltype(&T::operator())>
     {
@@ -190,26 +191,37 @@ namespace vex::traits
     {
         typedef ReturnType TResult;
 
-        static constexpr size_t arity = sizeof...(Args);
-
-        template <std::size_t I, typename T>
-        struct ArgTypes;
-
-        template <std::size_t I, typename Head, typename... Tail>
-        struct ArgTypes<I, TTypeList<Head, Tail...>> : ArgTypes<I - 1, TTypeList<Tail...>>
-        {
-            typedef Head type;
-        };
-
-        template <typename Head, typename... Tail>
-        struct ArgTypes<0, TTypeList<Head, Tail...>>
-        {
-            typedef Head type;
-        };
-
+        static constexpr size_t arity = sizeof...(Args);  
+        using ArgTypes = TTypeList<Args...>;
         template <std::size_t I>
-        using ArgTypesT = typename std::decay_t<typename ArgTypes<I, TTypeList<Args...>>::type>;
+        using NthType = typename std::decay_t<typename TypeListEnun<I, TTypeList<Args...>>::type>;
+    };  
+
+    template <typename R, typename... Args>
+    struct FunctorTraits<R (*)(Args...)>
+    {
+        using Pointer = R (*)(Args...); 
+        using ArgTypes = TTypeList<Args...>;
+        template <std::size_t I>
+        using NthType = typename std::decay_t<typename TypeListEnun<I, TTypeList<Args...>>::type>;
     }; 
+    template <typename R>
+    struct FunctorTraits<R (*)()> 
+    {
+        using Pointer = R (*)();
+        using ArgTypes = void;
+    };
+
+    template <typename T>
+    constexpr inline decltype(auto) identityFunc(T&& t)
+    {
+        return std::forward<T>(t);
+    }
+    template <typename... Args>
+    decltype(auto) lastArg(Args&&... args)
+    {
+        return (vex::traits::identityFunc(args), ...);
+    }
 } // namespace vex::traits 
 
 namespace vex

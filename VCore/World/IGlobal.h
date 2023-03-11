@@ -1,11 +1,8 @@
 #pragma once
-
-
+ 
 namespace vex
 {
-	// for singleton-like data
-	// distinct type to intentionally prevent accidental
-	// addition of type(say int) as Global
+	// #todo - intended to store global stuff, maybe like loggers or something
 	class IGlobal
 	{
 	public:

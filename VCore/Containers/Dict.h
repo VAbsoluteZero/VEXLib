@@ -22,29 +22,34 @@
 #include <VCore/Utils/HashUtils.h>
 #include <VCore/Utils/VUtilsBase.h>
 
-#include <optional>
-#include <vector>
-
 #ifdef VEXCORE_x64
-#include <VCore/Dependencies/fastmod.h>
+    #include <VCore/Dependencies/fastmod.h>
+#endif
+#ifndef VEXCORE_FASTMOD
+    #ifdef VEXCORE_x64
+        #define VEXCORE_FASTMOD 1
+    #else
+        #define VEXCORE_FASTMOD 0
+    #endif
 #endif
 
 #ifndef FORCE_INLINE
-#if defined(_MSC_VER)
+    #if defined(_MSC_VER)
 
-#define FORCE_INLINE __forceinline
+        #define FORCE_INLINE __forceinline
 
-#else // defined(_MSC_VER)
+    #else // defined(_MSC_VER)
 
-#define FORCE_INLINE inline __attribute__((always_inline))
+        #define FORCE_INLINE inline __attribute__((always_inline))
 
-#endif
+    #endif
 #endif // ! FORCE_INLINE
 
 namespace vex
 {
+    // #todo move out of this file
     template <typename TKey>
-    struct hasher
+    struct KeyHashEq
     {
         inline static i32 hash(const TKey& key)
         {
@@ -52,20 +57,48 @@ namespace vex
             // empty records (effectively taking one bit from .hash field)
             return (int)std::hash<TKey>{}(key);
         }
+
+        inline static bool is_equal(const TKey& a, const TKey& b) { return a == b; }
     };
     template <>
-    struct hasher<int>
+    struct KeyHashEq<int>
     {
         inline static i32 hash(const int& key) { return key; }
+        inline static bool is_equal(int a, int b) { return a == b; }
     };
 
+#ifdef VEXCORE_DEFINE_STRHASH
     template <>
-    struct hasher<std::string>
+    struct KeyHashEq<std::string>
     {
         inline static i32 hash(const std::string& key)
         {
             return murmur::MurmurHash3_x86_32(key.data(), (int)key.size());
         }
+        inline static i32 hash(std::string_view key)
+        {
+            return murmur::MurmurHash3_x86_32(key.data(), (int)key.size());
+        }
+        inline static i32 hash(const char* key) { return vex::util::fnv1a(key); }
+        template <typename T1, typename T2>
+        inline static bool is_equal(const T1& a, const T2& b)
+        {
+            return a == b;
+        }
+    };
+#endif
+
+    template <>
+    struct KeyHashEq<const char*>
+    {
+        inline static i32 hash(const char* key) { return vex::util::fnv1a(key); }
+        inline static bool is_equal(const char* a, const char* b) { return strcmp(a, b) == 0; }
+    };
+    template <>
+    struct KeyHashEq<char*>
+    {
+        inline static i32 hash(char* key) { return vex::util::fnv1a(key); }
+        inline static bool is_equal(const char* a, const char* b) { return strcmp(a, b) == 0; }
     };
     struct DSentinel
     {
@@ -101,11 +134,14 @@ namespace vex
         static const size_t alignment = vex::maxAlignOf<TBuckets, TCtrlBlock, TRecord>();
 
     public:
-        DictAllocator() = delete;
+        struct TTagNull
+        {
+        };
 
+        explicit DictAllocator(TTagNull) noexcept {}
         explicit DictAllocator(vex::Allocator in_alloc, u32 in_cap) noexcept : allocator(in_alloc)
         {
-            checkAlways_(in_cap > 0);
+            checkLethal(in_cap > 0, "invalid capacity");
 
             capacity = in_cap;
             constexpr size_t size_list[3] = {sizeof(TBuckets), sizeof(TCtrlBlock), sizeof(TRecord)};
@@ -117,22 +153,22 @@ namespace vex
             }
 
             // #todo write guard block
-            auto memory_region = (u8*)in_alloc.alloc(total_size, alignof(TBuckets));
+            auto memory_region = (u8*)in_alloc.alloc(total_size, alignof(TRecord));
             buckets = reinterpret_cast<TBuckets*>(memory_region);
-            checkAlways_(buckets);
+            checkLethal(buckets, "failure of allocator");
 
             // 'buckets' should be at the start and considered owning ptr
             u32 new_top = sizeof(TBuckets) * in_cap;
 
             vex::BumpAllocator bumper{memory_region, total_size};
-            bumper.top = new_top;
+            bumper.state.top = new_top;
 
             auto bumper_handle = bumper.makeAllocatorHandle();
             this->blocks = vexAllocTyped<TCtrlBlock>(bumper_handle, in_cap);
             this->recs = vexAllocTyped<TRecord>(bumper_handle, in_cap);
-            bool invalid = (recs == nullptr) || (blocks == nullptr) || (buckets == nullptr); 
+            bool invalid = (recs == nullptr) || (blocks == nullptr) || (buckets == nullptr);
 
-            checkAlways(!invalid, " bug: buffer could not contain all of the arrays "); 
+            checkLethal(!invalid, " bug: buffer could not contain all of the arrays ");
         }
 
         DictAllocator(const DictAllocator& other) = delete;
@@ -141,7 +177,8 @@ namespace vex
         {
             if (this != &other)
             {
-                allocator.dealloc(buckets);
+                if (buckets)
+                    allocator.dealloc(buckets);
                 capacity = other.capacity;
 
                 buckets = other.buckets;
@@ -175,9 +212,14 @@ namespace vex
         u32 capacity = 0;
     };
 
-    // #todo partially specialize for strings
+    template <typename TKey, typename TEq>
+    struct DefaultEq : public TEq
+    {
+        inline static bool is_equal(const TKey& a, const TKey& b) { return a == b; }
+    };
+
     // #TODO: implement shrink/realloc
-    template <typename TKey, typename TVal, typename THasher = hasher<TKey>>
+    template <typename TKey, typename TVal, typename TInHasher = KeyHashEq<TKey>>
     class alignas(64) Dict
     {
     public:
@@ -194,12 +236,18 @@ namespace vex
             i32 next = -1;
         };
 
+        using THasher =
+            typename std::conditional<requires {
+                                          {
+                                              TInHasher::is_equal(std::declval<TKey>(), std::declval<TKey>())
+                                              } -> std::same_as<bool>;
+                                      }, TInHasher, DefaultEq<TKey, TInHasher>>::type;
         using CombinedStorage = DictAllocator<i32, ControlBlock, Record>;
 
         FORCE_INLINE i32 size() const noexcept { return top_idx - free_count; }
         FORCE_INLINE u32 capacity() const noexcept { return data.capacity; }
 
-        Dict(u32 in_capacity = 7, vex ::Allocator in_alloc = vex::Mallocator::makeAllocatorHandle())
+        Dict(u32 in_capacity = 7, vex ::Allocator in_alloc = {})
             : data(in_alloc, vex::util::closestPrimeSearch(in_capacity))
         {
             refreshState();
@@ -208,7 +256,7 @@ namespace vex
             auto b = ControlBlock{-1, -1};
             std::fill_n(data.blocks, capacity(), b);
         }
-        Dict(std::initializer_list<Record> initlist, vex ::Allocator in_alloc = vex::Mallocator::makeAllocatorHandle())
+        Dict(std::initializer_list<Record> initlist, vex ::Allocator in_alloc = {})
             : data(in_alloc, vex::util::closestPrimeSearch(std::size(initlist)))
         {
             refreshState();
@@ -264,11 +312,14 @@ namespace vex
 
             return *this;
         }
+        // in this case we dont want to do any allocation, TTagNull selects empty ctor for storage
+        Dict(Dict&& other) : data(CombinedStorage::TTagNull()) { *this = std::move(other); }
 
         Dict& operator=(Dict&& other)
         {
             if (this != &other)
             {
+                this->clear();
                 data = std::move(other.data);
 
                 top_idx = other.top_idx;
@@ -319,8 +370,8 @@ namespace vex
             return nullptr;
         }
 
-        template <class... Types>
-        inline void emplace(const TKey& key, Types&&... arguments)
+        template <typename TKeyConvertible, class... Types>
+        inline void emplace(const TKeyConvertible& key, Types&&... arguments)
         {
             i32 i = findRec(key);
             if (i >= 0)
@@ -335,8 +386,8 @@ namespace vex
             }
         }
         static inline volatile i32 dbg;
-        template <class... Types>
-        inline TVal& emplaceAndGet(const TKey& key, Types&&... arguments)
+        template <typename TKeyConvertible, class... Types>
+        inline TVal& emplaceAndGet(const TKeyConvertible& key, Types&&... arguments)
         {
             i32 i = findRec(key);
             if (i >= 0)
@@ -353,21 +404,29 @@ namespace vex
             }
         }
 
-        template <typename T = TVal>
+        template <typename TKeyConvertible, typename T = TVal>
         inline typename std::enable_if_t<std::is_default_constructible<T>::value, TVal> valueOrDefault(
-            const TKey& key) const
+            const TKeyConvertible& key) const
         {
             i32 ind = findRec(key);
             return ind >= 0 ? data.recs[ind].value : TVal();
         }
 
-        inline TVal* tryGet(const TKey& key) const noexcept
+        template <typename TKeyConvertible>
+        inline TVal* tryGet(const TKeyConvertible& key) const noexcept
+        {
+            i32 ind = findRec(key);
+            return ind >= 0 ? &data.recs[ind].value : nullptr;
+        }
+        template <typename TKeyConvertible>
+        inline TVal* find(const TKeyConvertible& key) const noexcept
         {
             i32 ind = findRec(key);
             return ind >= 0 ? &data.recs[ind].value : nullptr;
         }
 
-        bool remove(const TKey& key) noexcept
+        template <typename TKeyConvertible>
+        bool remove(const TKeyConvertible& key) noexcept
         {
             i32 hash_ccode = THasher::hash(key) & 0x7FFFFFFF;
             i32 bucket = mod(hash_ccode, capacity());
@@ -375,7 +434,7 @@ namespace vex
 
             for (i32 i = data.buckets[bucket]; i >= 0; previous = i, i = data.blocks[i].next)
             {
-                if (data.blocks[i].hash == hash_ccode && (data.recs[i].key == key))
+                if (data.blocks[i].hash == hash_ccode && THasher::is_equal(data.recs[i].key, key))
                 {
                     // only
                     if (previous < 0)
@@ -415,7 +474,7 @@ namespace vex
             free_idx = -1;
             top_idx = 0;
 
-            if constexpr (std::is_trivially_copyable<Record>::value)
+            if constexpr (std::is_trivially_destructible<Record>::value)
             {
                 // basically do nothing
             }
@@ -433,22 +492,20 @@ namespace vex
             std::fill_n(data.blocks, capacity(), b);
         }
 
-
         struct DIterator
         {
             FORCE_INLINE bool advance()
             {
                 i32 count = owner_map.size();
-                while (index < (count - 1))
-                    [[likely]]
+                while (index < (count - 1)) [[likely]]
+                {
+                    index++;
+                    const auto hash = owner_map.data.blocks[index].hash;
+                    if (hash >= 0) [[likely]]
                     {
-                        index++;
-                        const auto hash = owner_map.data.blocks[index].hash;
-                        if (hash >= 0) [[likely]]
-                        {
-                            return true;
-                        }
+                        return true;
                     }
+                }
 
                 index = owner_map.size() + 1;
                 return false;
@@ -482,11 +539,14 @@ namespace vex
             friend class Dict;
         };
 
+        FORCE_INLINE DIterator begin() const noexcept { return DIterator{*this}; };
+
         FORCE_INLINE DIterator begin() noexcept { return DIterator{*this}; };
         FORCE_INLINE DSentinel end() const noexcept { return kEndIteratorSentinel; };
 
-        template <typename T = TVal>
-        inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> operator[](const TKey& key)
+        template <typename TKeyConvertible, typename T = TVal>
+        inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> operator[](
+            const TKeyConvertible& key)
         {
             i32 i = findRec(key);
 
@@ -502,7 +562,8 @@ namespace vex
         FORCE_INLINE bool contains(const TKey& item) const { return findRec(item) >= 0; }
 
     private:
-        FORCE_INLINE i32 findRec(const TKey& key) const noexcept
+        template <typename TKeyConvertible>
+        FORCE_INLINE i32 findRec(const TKeyConvertible& key) const noexcept
         {
             // ensure abs value
             i32 hash_code = THasher::hash(key) & 0x7FFFFFFF;
@@ -511,18 +572,20 @@ namespace vex
             for (i32 i = data.buckets[bucket_index]; i >= 0; i = data.blocks[i].next)
             {
                 if (data.blocks[i].hash == hash_code)
-                    if (data.recs[i].key == key)
+                    if (THasher::is_equal(data.recs[i].key, key))
                         return i;
             }
             return -1;
         }
 
 
-        static constexpr float grow_factor = 1.6f;
         CombinedStorage data;
-
+        // end of used space (0 <= top_idx < cap), grows when andding element and
+        // [0, top_idx] area all filled up
         i32 top_idx = 0;
+        // 'hole' in the used space
         i32 free_idx = 0;
+        // num of 'holes' in the used space
         i32 free_count = 0;
 
 #ifdef VEXCORE_x64
@@ -531,14 +594,20 @@ namespace vex
         inline void refreshState()
         {
 #ifdef VEXCORE_x64
+    #if VEXCORE_FASTMOD
             fastmod_m = fastmod::computeM_s32(capacity());
+    #endif
 #endif
         }
 
         FORCE_INLINE i32 mod(i32 a, i32 b) const noexcept
         {
 #ifdef VEXCORE_x64
+    #if VEXCORE_FASTMOD
             return fastmod::fastmod_s32(a, fastmod_m, b);
+    #else
+            return a % b;
+    #endif
 #else
             return a % b;
 #endif
@@ -547,7 +616,10 @@ namespace vex
         void grow()
         {
             using namespace vex::util;
-            i32 new_size = closestPrimeSearch((i32)(capacity() * grow_factor + 1));
+            const auto new_cap = data.capacity + data.capacity / 2; // grows by factor of 1.5
+            i32 new_size = closestPrimeSearch((i32)(new_cap + 1));
+
+            // checkAlwaysRel(new_size == data.capacity, "max number of elements reached");
 
             CombinedStorage new_data(data.allocator, new_size);
             RawBuffer<Record> new_recs = new_data.recordsBuffer();
@@ -600,7 +672,8 @@ namespace vex
             }
         }
 
-        inline Record& createRecord(const TKey& key)
+        template <typename TKeyConvertible>
+        inline Record& createRecord(const TKeyConvertible& key)
         {
             i32 hash_code = THasher::hash(key) & 0x7FFFFFFF;
             i32 bucket_ind = mod(hash_code, (int)capacity());

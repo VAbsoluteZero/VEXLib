@@ -27,7 +27,7 @@ namespace vex::union_impl
     template <typename TSelf, typename... Types>
     struct UnionBase
     {
-        static_assert(sizeof...(Types) <= 16, "too many types in Union");
+        static_assert(sizeof...(Types) <= 32, "too many types in Union");
         static constexpr auto size_of_storage = vex::maxSizeOf<Types...>();
         static constexpr auto alignment = vex::maxAlignOf<Types...>();
         static constexpr auto type_cnt = sizeof...(Types);
@@ -135,7 +135,7 @@ namespace vex::union_impl
         inline constexpr void matchOne(TFunc&& Func)
         {
             using TraitsT = traits::FunctorTraits<std::decay_t<decltype(Func)>>;
-            using TArg0 = std::decay_t<typename TraitsT::template ArgTypesT<0>>;
+            using TArg0 = std::decay_t<typename TraitsT::template NthType<0>>;
 
             if (!UnionBase::has<TArg0>())
                 return;

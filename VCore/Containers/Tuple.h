@@ -45,7 +45,8 @@ namespace vex
         struct CreateMembers;
 
         template <int... Number>
-        struct CreateMembers<std::integer_sequence<int, Number...>> : public ValueHolder<Number, Types>...
+        struct CreateMembers<std::integer_sequence<int, Number...>>
+            : public ValueHolder<Number, Types>...
         {
             static constexpr auto MemberCount = sizeof...(Types);
 
@@ -127,35 +128,36 @@ namespace vex
 
 namespace std
 {
-    template <typename... Types>
-    struct tuple_size<vex::Tuple<Types...>> : std::integral_constant<std::size_t, sizeof...(Types)>
-    {
-    };
+    // template <typename... Types>
+    // struct tuple_size<vex::Tuple<Types...>> : std::integral_constant<std::size_t,
+    // sizeof...(Types)>
+    //{
+    // };
 
-    template <std::size_t N, class... Types>
-    struct tuple_element<N, vex::Tuple<Types...>>
-    {
-        using type = typename vex::GetTypeByIndex<N, Types...>::type;
-    };
+    // template <std::size_t N, class... Types>
+    // struct tuple_element<N, vex::Tuple<Types...>>
+    //{
+    //     using type = typename vex::GetTypeByIndex<N, Types...>::type;
+    // };
 
     template <auto I, class... Types>
     constexpr decltype(auto) get(vex::Tuple<Types...>& arg)
     {
-        return arg.template Get<I>();
+        return arg.template get<I>();
     }
     template <auto I, class... Types>
     constexpr decltype(auto) get(const vex::Tuple<Types...>& arg)
     {
-        return arg.template Get<I>();
+        return arg.template get<I>();
     }
     template <auto I, class... Types>
     constexpr decltype(auto) get(vex::Tuple<Types...>&& arg)
     {
-        return arg.template Get<I>();
+        return arg.template get<I>();
     }
     template <auto I, class... Types>
     constexpr decltype(auto) get(const vex::Tuple<Types...>&& arg)
     {
-        return arg.template Get<I>();
+        return arg.template get<I>();
     }
 } // namespace std

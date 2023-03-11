@@ -3,7 +3,7 @@
  * MIT LICENSE
  * Copyright (c) 2019 Vladyslav Joss
  */
-#include <cstdint>
+#include <VCore/Utils/CoreTemplates.h>
 #include <random>
 
 #if INTPTR_MAX == INT64_MAX
@@ -68,7 +68,36 @@ namespace vex
 			return gPrimeNumbers[gPrimeSize - 1];
 		}
 
-		inline constexpr int closestPrimeSearch(int value) { return findUpperBound(gPrimeNumbers, gPrimeSize, value); }
+        inline constexpr bool isPrime(int val)
+        {
+			// works for 1 too.
+            if ((val & 1) != 0)
+            {
+                int stop = (int)std::sqrt(val);
+                for (int div = 3; div <= stop; div += 2)
+                {
+                    if ((val % div) == 0)
+                        return false;
+                }
+                return true;
+            }
+            return (val == 2);
+        }
+
+		inline constexpr int closestPrimeSearch(int value)
+		{ 
+			[[unlikely]]
+			if (value > gPrimeNumbers[gPrimeSize - 1]) 
+			{
+                for (int i = (value | 1); i < INT32_MAX; i += 2)
+                {
+                    if (isPrime(value))
+                        return i;
+                }
+			}
+
+			return findUpperBound(gPrimeNumbers, gPrimeSize, value); 
+		}
 
 		inline int randomRange(int fromInc, int toExc)
 		{
@@ -79,20 +108,37 @@ namespace vex
 			return dist(mt);
 		}
 
-		static const std::size_t fnv_prime = 16777619u;
-		static const std::size_t fnv_offset_basis = 2166136261u;
+		static constexpr std::size_t fnv_prime = 16777619u;
+        static constexpr std::size_t fnv_offset_basis = 2166136261u;
 
-		static inline int fnv1a(std::string const& text)
-		{
-			std::size_t hash = fnv_offset_basis;
-			for (std::string::const_iterator it = text.begin(), end = text.end(); it != end; ++it)
-			{
-				hash ^= *it;
-				hash *= fnv_prime;
-			}
+        static inline constexpr int fnv1a(const char* text)
+        {
+            std::size_t hash = fnv_offset_basis;
+            for (auto it = text; *it != '\0'; ++it)
+            {
+                hash ^= *it;
+                hash *= fnv_prime;
+            }
 
-			return (int)hash;
-		}
+            return (int)hash;
+        }
+        static inline constexpr int fnv1a(u8* bytes, u32 len)
+        {
+            std::size_t hash = fnv_offset_basis;
+            for (auto i = 0; i < len; ++i)
+            {
+                hash ^= bytes[i];
+                hash *= fnv_prime;
+            }
+
+            return (int)hash;
+        } 
+
+		template<typename T>
+        static inline constexpr int fnv1a_obj(const T& obj)
+        { 
+            return fnv1a((u8*)&obj, sizeof(T));
+        }
 
 		static inline int hash(char* c, int sz) { return (int)murmur::MurmurHash3_x86_32(c, sz); }
 
@@ -103,7 +149,7 @@ namespace vex
 #ifdef ECSCORE_x64
 				return (int)murmur::MurmurHash3_x86_32(str.data(), (int)str.size());
 #else
-				return fnv1a(str);
+                return fnv1a((u8*)str.data(), str.length());
 #endif
 			}
 		};
@@ -113,7 +159,7 @@ namespace vex
 		};
 		struct SHash_FNV1a
 		{
-			static inline int hash(const std::string& str) { return fnv1a(str); }
+            static inline int hash(const std::string& str) { return fnv1a((u8*)str.data(), str.length()); }
 		};
 		struct SHash_MURMUR
 		{

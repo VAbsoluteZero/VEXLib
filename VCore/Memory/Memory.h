@@ -163,8 +163,7 @@ namespace vex
         {
             BufferHeader* prev = nullptr;
             u32 size = 0;
-        };
-
+        }; 
         static constexpr u32 header_size = (u32)sizeof(BufferHeader);
 
         struct State

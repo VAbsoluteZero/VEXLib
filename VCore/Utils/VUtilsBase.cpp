@@ -18,7 +18,6 @@ void vex::debug::DebugLogHook::print(const char* file, int line, const char* msg
     }
     default_print(file, line, msg);
 }
-// E:\VAbsoluteZero\core_tester\VSProject\ECSBenchmarks\..\..\VEXLib\VCore/Containers/Union.h(58,36):
 void vex::debug::DebugLogHook::default_print(const char* file, int line, const char* msg)
 {
     std::string print_me{file};

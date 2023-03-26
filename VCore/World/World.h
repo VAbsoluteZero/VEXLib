@@ -118,7 +118,7 @@ namespace vex
         Storage<TComp>& getStorage() noexcept
         {
             auto type_id = TComp::type_id;
-            auto* base_ptr = storages.tryGet(type_id);
+            auto* base_ptr = storages.find(type_id);
             if (nullptr != base_ptr)
                 return *(base_ptr->template castTo<Storage<TComp>>());
 

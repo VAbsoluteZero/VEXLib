@@ -11,11 +11,29 @@
 
 namespace vex
 {
+    template <typename ValType>
+    struct ROSpan
+    {
+        const ValType* data = nullptr;
+        const i32 len = 0;
+        FORCE_INLINE auto byteSize() const -> u64 { return len * sizeof(ValType); }
+        FORCE_INLINE auto size() const -> const i32 { return len; }
+        FORCE_INLINE auto operator[](i32 i) const -> const ValType& { return *(data + i); }
+        FORCE_INLINE auto at(i32 i) const -> const ValType&
+        {
+            checkLethal((i >= 0) && (i <= len), "out of bounds");
+            return *(data + i);
+        }
+        FORCE_INLINE auto begin() -> const ValType* { return data; }
+        FORCE_INLINE auto end() -> const ValType* { return len > 0 ? data + len : nullptr; }
+    };
+
     // Optimized for POD types that are fine with memcpy for copying and don't need dtor call
     template <typename ValType>
     struct Buffer
     {
-        static_assert(std::is_trivially_copyable_v<ValType> && std::is_trivially_destructible_v<ValType>);
+        static_assert(
+            std::is_trivially_copyable_v<ValType> && std::is_trivially_destructible_v<ValType>);
         Allocator allocator;
         ValType* first = nullptr;
         i32 len = 0;
@@ -36,7 +54,8 @@ namespace vex
                     memcpy(first, other.first, len * sizeof(ValType));
             }
         }
-        Buffer(std::initializer_list<ValType> initlist, vex ::Allocator in_alloc = {}) : allocator(in_alloc)
+        Buffer(std::initializer_list<ValType> initlist, vex ::Allocator in_alloc = {})
+            : allocator(in_alloc)
         {
             addRange(initlist);
         }
@@ -45,11 +64,15 @@ namespace vex
         {
             if (this != &other)
             {
+                if (first)
+                    allocator.dealloc(first);
                 allocator = other.allocator;
                 len = other.len;
                 cap = other.cap;
                 first = other.first;
                 other.first = nullptr;
+                other.cap = 0;
+                other.len = 0;
             }
 
             return *this;
@@ -64,6 +87,11 @@ namespace vex
         FORCE_INLINE auto capacity() const -> i32 { return cap; }
         FORCE_INLINE auto data() -> ValType* { return first; }
         FORCE_INLINE auto data() const -> const ValType* { return first; }
+        FORCE_INLINE auto back() const -> ValType* { return len > 0 ? first + len - 1 : nullptr; }
+        FORCE_INLINE auto begin() -> ValType* { return first; }
+        FORCE_INLINE auto end() -> ValType* { return len > 0 ? first + len : nullptr; }
+        FORCE_INLINE auto begin() const -> const ValType* { return first; }
+        FORCE_INLINE auto end() const -> const ValType* { return len > 0 ? first + len : nullptr; }
 
         FORCE_INLINE auto operator[](i32 i) const -> ValType& { return *(first + i); }
         FORCE_INLINE auto at(i32 i) const -> ValType&
@@ -99,7 +127,6 @@ namespace vex
                 len = new_len;
             }
         }
-
         FORCE_INLINE void addRange(ValType* src, i32 num)
         {
             if (num > 0)
@@ -111,16 +138,29 @@ namespace vex
                 len += num;
             }
         }
-        FORCE_INLINE void addRange(std::initializer_list<ValType> initlist)
+        FORCE_INLINE void addList(std::initializer_list<ValType> initlist)
         {
             reserve(len + std::size(initlist));
             for (auto&& rec : initlist)
                 add(rec);
         }
+        FORCE_INLINE void setSizeInit(i32 num)
+        {
+            if (num > 0)
+            {
+                reserve(num);
+                for (i32 i = len; i < num; i++)
+                {
+                    add({});
+                }
+            }
+            else
+                len = num;
+        }
 
         // 'Swaps' element with the last and reduces len by 1, so it CHANGES order.
-        // In actuallity it moves (len - 1) into (i)th, leaving (len - 1) as it was, since it is POD-only
-        // array
+        // In actuallity it moves (len - 1) into (i)th, leaving (len - 1) as it was, since it is
+        // POD-only array
         FORCE_INLINE void removeSwapAt(i32 i) noexcept
         {
             if (len == 0 || i > len)
@@ -152,9 +192,9 @@ namespace vex
 
         FORCE_INLINE void grow()
         {
-            // 1.5 growth factor, (cap + cap / 2) would work only for 2 and higher cap 
+            // 1.5 growth factor, (cap + cap / 2) would work only for 2 and higher cap
             // default new capacity for 'growth' is 5 (if cap is < 2)
-            const i32 grow_cap = cap >= 2 ? (cap + cap / 2) : 5; 
+            const i32 grow_cap = cap >= 2 ? (cap + cap / 2) : 5;
             reserve(grow_cap);
         }
         FORCE_INLINE void reserve(u32 num)
@@ -175,5 +215,7 @@ namespace vex
                 first = new_first;
             }
         }
+
+        FORCE_INLINE ROSpan<ValType> constSpan() const { return {first, len}; }
     };
 } // namespace vex

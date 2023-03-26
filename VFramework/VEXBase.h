@@ -9,6 +9,7 @@
 #include <VFramework/Misc/VUtils.h>
 //
 #include <VCore/Containers/Array.h>
+#include <VCore/Containers/Tuple.h>
 //
 #include <memory>
 #include <string>
@@ -22,6 +23,17 @@ struct fmt::formatter<v2i32>
     constexpr auto parse(format_parse_context& ctx) -> decltype(ctx.begin()) { return ctx.begin(); }
     template <typename FormatContext>
     auto format(const v2i32& p, FormatContext& ctx) const -> decltype(ctx.out())
+    {
+        return fmt::format_to(ctx.out(), "({}, {})", p.x, p.y);
+    }
+};
+template <>
+struct fmt::formatter<v2f>
+{
+    // Parses format specifications of the form ['f' | 'e'].
+    constexpr auto parse(format_parse_context& ctx) -> decltype(ctx.begin()) { return ctx.begin(); }
+    template <typename FormatContext>
+    auto format(const v2f& p, FormatContext& ctx) const -> decltype(ctx.out())
     {
         return fmt::format_to(ctx.out(), "({}, {})", p.x, p.y);
     }

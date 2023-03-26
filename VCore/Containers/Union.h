@@ -41,7 +41,10 @@ namespace vex::union_impl
             return type_index;
         }
 
-        constexpr bool hasAnyValue() const noexcept { return value_index != k_null_type; }
+        FORCE_INLINE constexpr bool hasAnyValue() const noexcept
+        {
+            return value_index != k_null_type;
+        }
 
         template <typename T>
         constexpr bool has() const noexcept
@@ -49,12 +52,19 @@ namespace vex::union_impl
             constexpr auto typeIndex = traits::getIndex<T, Types...>();
             return typeIndex == value_index;
         }
+        template <typename T>
+        static constexpr bool mayHave() noexcept
+        {
+            constexpr auto typeIndex = traits::getIndex<T, Types...>();
+            return typeIndex != traits::type_index_none;
+        }
 
         template <typename T>
         constexpr T& get() & noexcept
         {
             using TArg = std::remove_reference_t<T>;
-            static_assert(traits::hasType<TArg, Types...>(), "Union cannot possibly contain this type");
+            static_assert(
+                traits::hasType<TArg, Types...>(), "Union cannot possibly contain this type");
             constexpr auto typeIndex = traits::getIndex<TArg, Types...>();
             checkAlways_(typeIndex == this->value_index);
             // printf("&\n");
@@ -65,7 +75,8 @@ namespace vex::union_impl
         constexpr const T& get() const& noexcept
         {
             using TArg = std::remove_reference_t<T>;
-            static_assert(traits::hasType<TArg, Types...>(), "Union cannot possibly contain this type");
+            static_assert(
+                traits::hasType<TArg, Types...>(), "Union cannot possibly contain this type");
             constexpr auto typeIndex = traits::getIndex<TArg, Types...>();
             checkAlways_(typeIndex == this->value_index);
             // printf("const &\n");
@@ -76,7 +87,8 @@ namespace vex::union_impl
         constexpr T&& get() && noexcept
         {
             using TArg = std::remove_reference_t<T>;
-            static_assert(traits::hasType<TArg, Types...>(), "Union cannot possibly contain this type");
+            static_assert(
+                traits::hasType<TArg, Types...>(), "Union cannot possibly contain this type");
             constexpr auto typeIndex = traits::getIndex<TArg, Types...>();
             checkAlways_(typeIndex == this->value_index);
             // printf("&&\n");
@@ -86,7 +98,8 @@ namespace vex::union_impl
         constexpr T&& get() const&& noexcept
         {
             using TArg = std::remove_reference_t<T>;
-            static_assert(traits::hasType<TArg, Types...>(), "Union cannot possibly contain this type");
+            static_assert(
+                traits::hasType<TArg, Types...>(), "Union cannot possibly contain this type");
             constexpr auto typeIndex = traits::getIndex<TArg, Types...>();
             checkAlways_(typeIndex == this->value_index);
             // printf("const &&\n");
@@ -104,7 +117,8 @@ namespace vex::union_impl
         template <typename T>
         T* find() noexcept
         {
-            static_assert(traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
+            static_assert(
+                traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
             if (!UnionBase::has<T>())
                 return nullptr;
 
@@ -114,7 +128,8 @@ namespace vex::union_impl
         template <typename T>
         const T* find() const noexcept
         {
-            static_assert(traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
+            static_assert(
+                traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
             if (!UnionBase::has<T>())
                 return nullptr;
 
@@ -156,13 +171,13 @@ namespace vex::union_impl
     case num:                                      \
         if constexpr (num < type_cnt)              \
         {                                          \
-            return Func(*(saticFindByIdx<num>())); \
+            return Func(saticFindByIdx<num>()); \
         }
         // !VEX_visitCase
         template <typename TFunc>
         inline constexpr auto visit(TFunc&& Func)
         {
-            using TRetType = decltype(Func(*(saticFindByIdx<0>())));
+            using TRetType = decltype(Func(saticFindByIdx<0>()));
 
             switch (this->value_index)
             {
@@ -193,7 +208,8 @@ namespace vex::union_impl
         template <typename T>
         inline void setTypeIndex() noexcept
         {
-            static_assert(traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
+            static_assert(
+                traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
             constexpr auto typeIndex = traits::getIndex<T, Types...>();
             this->value_index = typeIndex;
         }
@@ -206,6 +222,7 @@ namespace vex::union_impl
     struct UnionImpl<true, Types...> : public UnionBase<UnionImpl<true, Types...>, Types...>
     {
         using Base = UnionBase<UnionImpl<true, Types...>, Types...>;
+        using TSelf = UnionImpl<true, Types...>;
         friend struct UnionBase<UnionImpl<true, Types...>, Types...>;
 
         constexpr UnionImpl() = default;
@@ -217,15 +234,26 @@ namespace vex::union_impl
 
         static constexpr bool is_trivial = true;
 
+
         template <typename T>
-        UnionImpl(T&& Arg) noexcept
+        constexpr UnionImpl(T&& arg) noexcept
         {
             using TUnderlying = std::decay_t<T>;
-            static_assert(
-                traits::hasType<TUnderlying, Types...>(), "Union cannot possibly contain this type");
-
-            new (this->storage) TUnderlying(std::forward<T>(Arg));
-            this->template setTypeIndex<TUnderlying>();
+            if constexpr (std::is_same_v<TUnderlying, TSelf>)
+            {
+                for (u32 i = 0; i < size_of_storage; i++)
+                    storage[i] = arg.storage[i];
+                this->value_index = other.value_index;
+            }
+            else
+            {
+                static_assert(traits::hasType<TUnderlying, Types...>(),
+                    "Union cannot possibly contain this type");
+                std::construct_at(
+                    reinterpret_cast<TUnderlying*>(this->storage), std::forward<T>(arg));
+                constexpr auto typeIndex = traits::getIndex<TUnderlying, Types...>();
+                this->value_index = typeIndex;
+            }
         }
 
         template <typename T, typename TArg = T>
@@ -233,8 +261,8 @@ namespace vex::union_impl
         {
             constexpr bool kConv =
                 std::is_convertible_v<TArg, T>; // (... || std::is_convertible_v<T, Types>);
-            static_assert(
-                kConv || traits::hasType<TArg, Types...>(), "Union cannot possibly contain this type");
+            static_assert(kConv || traits::hasType<TArg, Types...>(),
+                "Union cannot possibly contain this type");
 
             if (std::is_same_v<T, TArg>)
             {
@@ -246,20 +274,22 @@ namespace vex::union_impl
             }
             this->template setTypeIndex<T>();
         }
-        template <typename T>
-        inline void set(T&& Val) noexcept
-        {
-            static_assert(traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
+        //template <typename T>
+        //inline void set(T&& Val) noexcept
+        //{
+        //    static_assert(
+        //        traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
 
-            *(reinterpret_cast<T*>(this->storage)) = std::forward<T>(Val);
-            this->template setTypeIndex<T>();
-        }
+        //    *(reinterpret_cast<T*>(this->storage)) = std::forward<T>(Val);
+        //    this->template setTypeIndex<T>();
+        //}
 
         //  reutrn default value if not there
         template <typename T>
-        inline T getValueOrDefault(T defaultVal) const noexcept
+        inline T getValueOr(T defaultVal) const noexcept
         {
-            static_assert(traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
+            static_assert(
+                traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
 
             if (!this->template has<T>())
                 return defaultVal;
@@ -271,7 +301,8 @@ namespace vex::union_impl
         template <typename T>
         inline T& getOrAdd() noexcept
         {
-            static_assert(traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
+            static_assert(
+                traits::hasType<T, Types...>(), "Union cannot possibly contain this type");
             if (!this->template has<T>())
                 this->set<T>(T());
 
@@ -369,7 +400,8 @@ namespace vex::union_impl
         ~UnionImpl() { this->destroyValue(); }
         UnionImpl(const UnionImpl& other)
         { //
-            static_assert((... & std::is_move_constructible_v<Types>), "Union contains non-movable type");
+            static_assert(
+                (... & std::is_move_constructible_v<Types>), "Union contains non-movable type");
             if (other.hasAnyValue())
             {
                 (copyIter<Types>(other), ...);
@@ -448,8 +480,8 @@ namespace vex::union_impl
             }
             else
             {
-                static_assert(
-                    traits::hasType<TUnderlying, Types...>(), "Union cannot possibly contain this type");
+                static_assert(traits::hasType<TUnderlying, Types...>(),
+                    "Union cannot possibly contain this type");
                 new (this->storage) TUnderlying(std::forward<T>(arg));
                 this->template setTypeIndex<TUnderlying>();
             };
@@ -458,8 +490,8 @@ namespace vex::union_impl
         template <typename TargetType, typename TArg = TargetType>
         void set(TArg&& Val)
         {
-            constexpr bool kConv =
-                std::is_convertible_v<TArg, TargetType>; // (... || std::is_convertible_v<T, Types>);
+            constexpr bool kConv = std::is_convertible_v<TArg,
+                TargetType>; // (... || std::is_convertible_v<T, Types>);
             static_assert(kConv || traits::hasType<TargetType, Types...>(), // ? #todo better check
                 "Union cannot possibly contain this type");
 
@@ -492,7 +524,8 @@ namespace vex::union_impl
         T getMoved() noexcept
         {
             using TArg = std::remove_reference_t<T>;
-            static_assert(traits::hasType<TArg, Types...>(), "Union cannot possibly contain this type");
+            static_assert(
+                traits::hasType<TArg, Types...>(), "Union cannot possibly contain this type");
 
             constexpr auto typeIndex = traits::getIndex<TArg, Types...>();
             checkAlways_(typeIndex == this->value_index);

@@ -63,7 +63,7 @@ namespace vex
         {
             if (!data.contains(original))
                 return false;
-            TComp& ncomp = *data.tryGet(original);
+            TComp& ncomp = *data.find(original);
             data.emplace(newOne, ncomp);
             ;
             return true;

@@ -10,9 +10,13 @@
 
 namespace vex
 {
-    /*
+    /* 
+    * 
         Simple Static Ring Buffer, meant mainly for PODs.
-        fill_forward == true means that buffer will grow from 0 to k_capacity, otherwise k_capacity
+
+       *** NOTE: Has 'stack' interface, meaning last added element considered 'first' ***
+       
+       fill_forward == true means that buffer will grow from 0 to k_capacity, otherwise k_capacity
        to 0. This means that fill_forward is better for insert, !fill_forward - for iteration (you
        can still iterate unordered even with fill_forward).
     */
@@ -139,6 +143,31 @@ namespace vex
 
             return out_val;
         }
+        // maybe pop back?
+        [[nodiscard]] inline auto dequeueUnchecked() -> T
+        {
+            checkAlways_(num_elements > 0);
+
+            auto top_item = item(toRawIndex(num_elements - 1));
+            auto tmp = std::move(*top_item);
+            top_item->~T();
+
+            --num_elements;
+
+            return tmp;
+        }
+        [[nodiscard]] inline auto dequeue() -> vex::Option<T>
+        {
+            if (num_elements <= 0)
+                return {};
+
+            auto top_item = item(toRawIndex(num_elements - 1));
+            Option<T> out_val{std::move(*top_item)};
+            top_item->~T(); 
+            --num_elements;  
+
+            return out_val;
+        }
 
         inline void popDiscard()
         {
@@ -214,6 +243,7 @@ namespace vex
 
         const T* rawDataUnsafe() const { return data_typed; }
 
+        // last added element considered 'first'
         // do not use this type directly, it is meant for ranged for exclusively
         template <bool Const>
         struct SqIterator
@@ -243,6 +273,7 @@ namespace vex
         auto begin() noexcept { return SqIterator<false>{*this}; };
         auto end() const noexcept { return k_seq_end; };
         auto begin() const noexcept { return SqIterator<true>{*this}; };
+        // first added element considered 'first'(in contrast to SqIterator)
         // do not use this type directly, it is meant for ranged for exclusively
         template <bool Const>
         struct RevIterator
@@ -275,6 +306,19 @@ namespace vex
         auto rbegin() noexcept { return RevIterator<false>{*this}; };
         auto rend() const noexcept { return k_seq_end; };
         auto rbegin() const noexcept { return RevIterator<true>{*this}; };
+
+        template <bool Const>
+        struct ReverseEnumerable
+        {
+            auto begin() noexcept { return RevIterator<false>{*ring}; };
+            auto end() const noexcept { return k_seq_end; };
+            auto begin() const noexcept { return RevIterator<true>{*ring}; };
+            using RingType =
+                typename AddConst<StaticRing<T, k_capacity, fill_forward>, Const>::type;
+            RingType* ring;
+        };
+        auto reverseEnum() noexcept { return ReverseEnumerable<false>{this}; };
+        auto reverseEnum() const noexcept { return ReverseEnumerable<true>{this}; };
 
     private:
         static constexpr auto k_align = alignof(T) < 8 ? 8 : alignof(T);

@@ -1,7 +1,8 @@
 #pragma once
 
 #include <glm_common.h>
-#include <glm/ext/matrix_transform.hpp> 
+
+#include <glm/ext/matrix_transform.hpp>
 
 using v2f = glm::vec2;
 using v3f = glm::vec3;
@@ -33,6 +34,9 @@ static constexpr v3f v3f_one = v3f{1.0f, 1.0f, 1.0f};
 static constexpr v3f v3f_forward = v3f{0.0f, 1.0f, 0.0f};
 static constexpr v3f v3f_back = v3f{0.0f, -1.0f, 0.0f};
 
+static constexpr v4f v4f_zero = v4f{0.0f, 0.0f, 0.0f, 0.0f};
+static constexpr v4f v4f_one = v4f{1.0f, 1.0f, 1.0f, 1.0f};
+
 static constexpr v2i32 v2i32_zero = v2i32{0, 0};
 static constexpr v2i32 v2i32_one = v2i32{1, 1};
 static constexpr v2i32 v2i32_up = v2i32{0, 1};
@@ -56,19 +60,21 @@ namespace vex
     static constexpr float eulers{2.71828182845904523536f};
     static constexpr double double_eulers{2.718281828459045235360287471352662497757};
 
+    FORCE_INLINE constexpr float cross2d(v3f a, v3f b) { return a.x * b.y - b.x * a.y; }
+
     // so there is no need to include giant <algorithm> just for max
     template <typename T>
-    constexpr T max(T a, T b)
+    FORCE_INLINE constexpr T max(T a, T b)
     {
         return a > b ? a : b;
     }
     template <typename T>
-    constexpr T min(T a, T b)
+    FORCE_INLINE constexpr T min(T a, T b)
     {
         return a > b ? b : a;
     }
 
-    constexpr float clampOne(float v)
+    FORCE_INLINE constexpr float clampOne(float v)
     {
         v = v < 0 ? 0 : v;
         return v > 1 ? 1 : v;
@@ -76,19 +82,20 @@ namespace vex
 
     // std::lerp is 2x slower in debug, same speed in release
     template <typename T>
-    constexpr T lerp(T v0, T v1, float t)
+    FORCE_INLINE constexpr T lerp(T v0, T v1, float t)
     {
         return (1 - t) * v0 + t * v1;
     }
 
     template <typename T>
-    constexpr T lerpClamped(T v0, T v1, float t)
+    FORCE_INLINE constexpr T lerpClamped(T v0, T v1, float t)
     {
         float ct = clampOne(t);
         return (1 - ct) * v0 + ct * v1;
     }
 
-    inline float nearEqual(float val1, float val2, float eps = epsilon) /*fabs is not constexpr =( */
+    FORCE_INLINE constexpr float nearEqual(
+        float val1, float val2, float eps = epsilon) /*fabs is not constexpr =( */
     {
         return fabsf(val1 - val2) <= epsilon;
     }

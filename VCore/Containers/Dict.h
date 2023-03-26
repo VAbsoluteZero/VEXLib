@@ -23,26 +23,26 @@
 #include <VCore/Utils/VUtilsBase.h>
 
 #ifdef VEXCORE_x64
-    #include <VCore/Dependencies/fastmod.h>
+#include <VCore/Dependencies/fastmod.h>
 #endif
 #ifndef VEXCORE_FASTMOD
-    #ifdef VEXCORE_x64
-        #define VEXCORE_FASTMOD 1
-    #else
-        #define VEXCORE_FASTMOD 0
-    #endif
+#ifdef VEXCORE_x64
+#define VEXCORE_FASTMOD 1
+#else
+#define VEXCORE_FASTMOD 0
+#endif
 #endif
 
 #ifndef FORCE_INLINE
-    #if defined(_MSC_VER)
+#if defined(_MSC_VER)
 
-        #define FORCE_INLINE __forceinline
+#define FORCE_INLINE __forceinline
 
-    #else // defined(_MSC_VER)
+#else // defined(_MSC_VER)
 
-        #define FORCE_INLINE inline __attribute__((always_inline))
+#define FORCE_INLINE inline __attribute__((always_inline))
 
-    #endif
+#endif
 #endif // ! FORCE_INLINE
 
 namespace vex
@@ -79,7 +79,10 @@ namespace vex
         {
             return murmur::MurmurHash3_x86_32(key.data(), (int)key.size());
         }
-        inline static i32 hash(const char* key) { return vex::util::fnv1a(key); }
+        inline static i32 hash(const char* key)
+        {
+            return murmur::MurmurHash3_x86_32(key, strlen(key));
+        }
         template <typename T1, typename T2>
         inline static bool is_equal(const T1& a, const T2& b)
         {
@@ -114,10 +117,10 @@ namespace vex
      * regardless of element size due to cache friendliness.
      * Lookup for an element takes about the same time.
      *
-     * Data storage itself is a flat SOA-like structure, all logical parts of the dictionary (buckets, recs..)
-     * are allocated inside same buffer/memory region.
-     * There are some checks to ensure that POD-like data is being processed as such (e.g. memcpy'd).
-     * This container does not require neither Key nor Val to have default constructor.
+     * Data storage itself is a flat SOA-like structure, all logical parts of the dictionary
+     * (buckets, recs..) are allocated inside same buffer/memory region. There are some checks to
+     * ensure that POD-like data is being processed as such (e.g. memcpy'd). This container does not
+     * require neither Key nor Val to have default constructor.
      *
      * NOTE (1): this container does NOT resemble unordered_map in a way it is allocated -
      * it is using Flat memory buffer for all elements (instead of just storing pointers and
@@ -128,17 +131,16 @@ namespace vex
      * Basically allocating 2MB+ upfront could be expensive.
      */
 
+    struct CtorTagNull
+    {
+    };
     template <typename TBuckets, typename TCtrlBlock, typename TRecord>
     class DictAllocator
     {
         static const size_t alignment = vex::maxAlignOf<TBuckets, TCtrlBlock, TRecord>();
 
     public:
-        struct TTagNull
-        {
-        };
-
-        explicit DictAllocator(TTagNull) noexcept {}
+        explicit DictAllocator(CtorTagNull) noexcept {}
         explicit DictAllocator(vex::Allocator in_alloc, u32 in_cap) noexcept : allocator(in_alloc)
         {
             checkLethal(in_cap > 0, "invalid capacity");
@@ -218,30 +220,46 @@ namespace vex
         inline static bool is_equal(const TKey& a, const TKey& b) { return a == b; }
     };
 
-    // #TODO: implement shrink/realloc
-    template <typename TKey, typename TVal, typename TInHasher = KeyHashEq<TKey>>
-    class alignas(64) Dict
+    namespace detail
     {
-    public:
-        typedef TKey KeyType;
-        typedef TVal ValueType;
-        struct Record
+        template <typename TKey, typename TVal, bool IsValVoid>
+        struct RecordSpec;
+        template <typename TKey, typename TVal>
+        struct RecordSpec<TKey, TVal, false>
         {
             TKey key;
             TVal value;
         };
+        template <typename TKey, typename TVal>
+        struct RecordSpec<TKey, TVal, true>
+        {
+            TKey key;
+        };
+    } // namespace detail
+
+    // #TODO: implement shrink/realloc
+    template <typename TKey, typename TVal, typename TInHasher = KeyHashEq<TKey>>
+    class alignas(64) Dict
+    {
+        static constexpr bool value_is_void_t = std::is_same_v<void, TVal>;
+
+    public:
+        typedef TKey KeyType;
+        typedef TVal ValueType;
+        using Record = detail::RecordSpec<TKey, TVal, value_is_void_t>;
+
         struct ControlBlock
         {
             i32 hash = -1;
             i32 next = -1;
         };
 
-        using THasher =
-            typename std::conditional<requires {
-                                          {
-                                              TInHasher::is_equal(std::declval<TKey>(), std::declval<TKey>())
-                                              } -> std::same_as<bool>;
-                                      }, TInHasher, DefaultEq<TKey, TInHasher>>::type;
+        using THasher = typename std::conditional<requires {
+                                                      {
+                                                          TInHasher::is_equal(std::declval<TKey>(),
+                                                              std::declval<TKey>())
+                                                          } -> std::same_as<bool>;
+                                                  }, TInHasher, DefaultEq<TKey, TInHasher>>::type;
         using CombinedStorage = DictAllocator<i32, ControlBlock, Record>;
 
         FORCE_INLINE i32 size() const noexcept { return top_idx - free_count; }
@@ -312,8 +330,9 @@ namespace vex
 
             return *this;
         }
-        // in this case we dont want to do any allocation, TTagNull selects empty ctor for storage
-        Dict(Dict&& other) : data(CombinedStorage::TTagNull()) { *this = std::move(other); }
+        // in this case we dont want to do any allocation, CtorTagNull selects empty ctor for
+        // storage
+        Dict(Dict&& other) : data(CtorTagNull()) { *this = std::move(other); }
 
         Dict& operator=(Dict&& other)
         {
@@ -331,7 +350,8 @@ namespace vex
                 other.top_idx = 0;
                 other.free_count = 0;
                 other.free_idx = 0;
-                other.data = CombinedStorage(other.data.allocator, vex::util::closestPrimeSearch(7));
+                other.data = CombinedStorage(
+                    other.data.allocator, vex::util::closestPrimeSearch(7));
 
                 other.refreshState();
                 std::fill_n(other.data.buckets, other.data.capacity, -1);
@@ -355,15 +375,14 @@ namespace vex
             }
         }
 
-        template <typename T = TVal>
-        inline T* any() const
+        inline Record* any() const
         {
             if (size() > 0)
             {
                 for (u32 i = 0; i < size(); ++i)
                 {
                     if (data.blocks[i].hash > 0)
-                        return &data.recs[i].value;
+                        return &data.recs[i];
                 }
             }
 
@@ -371,7 +390,8 @@ namespace vex
         }
 
         template <typename TKeyConvertible, class... Types>
-        inline void emplace(const TKeyConvertible& key, Types&&... arguments)
+            requires(!value_is_void_t)
+        void emplace(const TKeyConvertible& key, Types&&... arguments)
         {
             i32 i = findRec(key);
             if (i >= 0)
@@ -387,7 +407,8 @@ namespace vex
         }
         static inline volatile i32 dbg;
         template <typename TKeyConvertible, class... Types>
-        inline TVal& emplaceAndGet(const TKeyConvertible& key, Types&&... arguments)
+            requires(!value_is_void_t)
+        inline auto& emplaceAndGet(const TKeyConvertible& key, Types&&... arguments)
         {
             i32 i = findRec(key);
             if (i >= 0)
@@ -405,24 +426,37 @@ namespace vex
         }
 
         template <typename TKeyConvertible, typename T = TVal>
-        inline typename std::enable_if_t<std::is_default_constructible<T>::value, TVal> valueOrDefault(
-            const TKeyConvertible& key) const
+        inline typename std::enable_if_t<std::is_default_constructible<T>::value, TVal>
+        valueOrDefault(const TKeyConvertible& key) const
         {
+            static_assert(!value_is_void_t, "method cannot be used in set variant of hast teble");
             i32 ind = findRec(key);
             return ind >= 0 ? data.recs[ind].value : TVal();
         }
 
+        FORCE_INLINE bool contains(const TKey& item) const { return findRec(item) >= 0; }
+
         template <typename TKeyConvertible>
-        inline TVal* tryGet(const TKeyConvertible& key) const noexcept
+            requires(!value_is_void_t)
+        FORCE_INLINE TVal* find(const TKeyConvertible& key) const noexcept
         {
+            static_assert(!value_is_void_t, "method cannot be used in set variant of hast teble");
             i32 ind = findRec(key);
             return ind >= 0 ? &data.recs[ind].value : nullptr;
         }
-        template <typename TKeyConvertible>
-        inline TVal* find(const TKeyConvertible& key) const noexcept
+
+        template <typename NumType>
+            requires(std::is_integral_v<NumType>)
+        FORCE_INLINE Record* findByHash(NumType in_hash) const noexcept
         {
-            i32 ind = findRec(key);
-            return ind >= 0 ? &data.recs[ind].value : nullptr;
+            i32 hash_code = static_cast<i32>(in_hash);
+            i32 bucket_index = mod(hash_code, (int)capacity());
+            for (i32 i = data.buckets[bucket_index]; i >= 0; i = data.blocks[i].next)
+            {
+                if (data.blocks[i].hash == hash_code)
+                    return &data.recs[i].value;
+            }
+            return nullptr;
         }
 
         template <typename TKeyConvertible>
@@ -452,8 +486,7 @@ namespace vex
                         data.blocks[i].hash = -1;
                         data.blocks[i].next = free_idx;
 
-                        entry.key.~TKey();
-                        entry.value.~TVal();
+                        entry.~Record();
                     }
                     free_idx = i;
                     free_count++;
@@ -474,18 +507,14 @@ namespace vex
             free_idx = -1;
             top_idx = 0;
 
-            if constexpr (std::is_trivially_destructible<Record>::value)
-            {
-                // basically do nothing
-            }
-            else
+            if constexpr (!std::is_trivially_destructible<Record>::value)
             {
                 for (u32 i = 0; i < capacity(); ++i)
                 {
                     if (data.blocks[i].hash >= 0)
                         data.recs[i].~Record();
                 }
-            }
+            } // otherwise basically do nothing
 
             std::fill_n(data.buckets, capacity(), -1);
             auto b = ControlBlock{-1, -1};
@@ -540,28 +569,24 @@ namespace vex
         };
 
         FORCE_INLINE DIterator begin() const noexcept { return DIterator{*this}; };
-
         FORCE_INLINE DIterator begin() noexcept { return DIterator{*this}; };
         FORCE_INLINE DSentinel end() const noexcept { return kEndIteratorSentinel; };
 
-        template <typename TKeyConvertible, typename T = TVal>
-        inline typename std::enable_if_t<std::is_default_constructible<T>::value, T&> operator[](
-            const TKeyConvertible& key)
+        template <typename TKeyConvertible>
+            requires(std::is_default_constructible<TVal>::value && !value_is_void_t)
+        auto& operator[](const TKeyConvertible& key)
         {
             i32 i = findRec(key);
-
             if (i < 0)
             {
                 Record& r = createRecord(key);
                 new (&r.value) TVal();
                 return r.value;
             }
-
             return data.recs[i].value;
         }
-        FORCE_INLINE bool contains(const TKey& item) const { return findRec(item) >= 0; }
 
-    private:
+    protected:
         template <typename TKeyConvertible>
         FORCE_INLINE i32 findRec(const TKeyConvertible& key) const noexcept
         {
@@ -594,20 +619,20 @@ namespace vex
         inline void refreshState()
         {
 #ifdef VEXCORE_x64
-    #if VEXCORE_FASTMOD
+#if VEXCORE_FASTMOD
             fastmod_m = fastmod::computeM_s32(capacity());
-    #endif
+#endif
 #endif
         }
 
         FORCE_INLINE i32 mod(i32 a, i32 b) const noexcept
         {
 #ifdef VEXCORE_x64
-    #if VEXCORE_FASTMOD
+#if VEXCORE_FASTMOD
             return fastmod::fastmod_s32(a, fastmod_m, b);
-    #else
+#else
             return a % b;
-    #endif
+#endif
 #else
             return a % b;
 #endif
@@ -673,7 +698,7 @@ namespace vex
         }
 
         template <typename TKeyConvertible>
-        inline Record& createRecord(const TKeyConvertible& key)
+        FORCE_INLINE Record& createRecord(const TKeyConvertible& key)
         {
             i32 hash_code = THasher::hash(key) & 0x7FFFFFFF;
             i32 bucket_ind = mod(hash_code, (int)capacity());
@@ -710,4 +735,23 @@ namespace vex
         }
     };
 
+    template <typename TKey, typename TInHasher = KeyHashEq<TKey>>
+    class Set : public Dict<TKey, void, TInHasher>
+    {
+    public:
+        using Dict<TKey, void, TInHasher>::Dict;
+
+        template <class... Types>
+        TKey& emplace(Types&&... arguments)
+        {
+            Record& r = createRecord(TKey(std::forward<Types>(arguments)...));
+            return r.key;
+        }
+        template <typename TKeyConvertible>
+        const TKey* find(const TKeyConvertible& key)
+        {
+            i32 ind = findRec(key);
+            return ind >= 0 ? &data.recs[ind].key : nullptr;
+        }
+    };
 } // namespace vex

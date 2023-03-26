@@ -50,7 +50,7 @@ namespace vex
         {
             static constexpr auto MemberCount = sizeof...(Types);
 
-            CreateMembers(Types... val) : ValueHolder<Number, Types>(val)... {}
+            // CreateMembers(Types... val) : ValueHolder<Number, Types>(val)... {}
 
             template <typename... TArgs>
             CreateMembers(TArgs&&... val) : ValueHolder<Number, Types>(std::forward<TArgs>(val))...
@@ -89,7 +89,8 @@ namespace vex
             {
                 static_assert(I < (sizeof...(Types)), "out of bounds");
                 using Target = typename GetTypeByIndex<I, Types...>::type;
-                return static_cast<Target&&>((static_cast<ValueHolder<I, Target>*>(this))->Value);
+                return static_cast<const Target&&>(
+                    (static_cast<const ValueHolder<I, Target>*>(this))->Value);
             }
         };
 
@@ -103,7 +104,7 @@ namespace vex
     };
 
     template <typename... Types>
-    using TupleAlias = decltype(Wrap<Types...>::MakeDefault());
+    using TupleAlias = decltype(Wrap<typename std::remove_reference_t<Types>...>::MakeDefault());
 
     template <typename... Types>
     struct Tuple : public TupleAlias<Types...>
@@ -111,7 +112,7 @@ namespace vex
         Tuple(const Tuple&) = default;
         Tuple(Tuple& other) : Tuple{const_cast<Tuple const&>(other)} {};
         Tuple(Tuple&&) = default;
-        Tuple(Types... val) : TupleAlias<Types...>((val)...) {}
+        // Tuple(Types... val) : TupleAlias<Types...>((val)...) {}
         template <typename... TArgs>
         Tuple(TArgs&&... val) : TupleAlias<Types...>(std::forward<TArgs>(val)...)
         {
@@ -128,17 +129,16 @@ namespace vex
 
 namespace std
 {
-    // template <typename... Types>
-    // struct tuple_size<vex::Tuple<Types...>> : std::integral_constant<std::size_t,
-    // sizeof...(Types)>
-    //{
-    // };
+    template <typename... Types>
+    struct tuple_size<vex::Tuple<Types...>> : std::integral_constant<std::size_t, sizeof...(Types)>
+    {
+    };
 
-    // template <std::size_t N, class... Types>
-    // struct tuple_element<N, vex::Tuple<Types...>>
-    //{
-    //     using type = typename vex::GetTypeByIndex<N, Types...>::type;
-    // };
+    template <std::size_t N, class... Types>
+    struct tuple_element<N, vex::Tuple<Types...>>
+    {
+        using type = typename vex::GetTypeByIndex<N, Types...>::type;
+    };
 
     template <auto I, class... Types>
     constexpr decltype(auto) get(vex::Tuple<Types...>& arg)

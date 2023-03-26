@@ -75,20 +75,20 @@ extern void __cdecl __debugbreak(void);
 
 // FORCE_NOINLINE ?
 #define VEXpriv_DoCheckAlwaysTrigger(ConditionExp, File, Line, Msg) \
-    ((static_cast<bool>(ConditionExp)) || (([]() -> bool \
+    ((static_cast<bool>(ConditionExp)) || (([mcstr = Msg]() -> bool \
 		{ \
-				vex::debug::DebugLogHook::print(File, Line, Msg); \
+				vex::debug::DebugLogHook::print(File, Line, mcstr); \
 				return true; \
 		}()) &&  ([] { VEX_DBGBREAK(); VEXpriv_MaybeCrashOnCheck(); return false;} ())))
 
 #define VEXpriv_DoCheck(ConditionExp, File, Line, Msg) \
-    ((static_cast<bool>(ConditionExp)) || (([]() -> bool \
+    ((static_cast<bool>(ConditionExp)) || (([mcstr = Msg]() -> bool \
 		{ \
 			static bool g_executed = false; \
 			if (!g_executed) \
 			{ \
 				g_executed = true; \
-				vex::debug::DebugLogHook::print(File, Line, Msg); \
+				vex::debug::DebugLogHook::print(File, Line, mcstr); \
 				return true; \
 			} \
 			return false; \

@@ -405,7 +405,7 @@ namespace vex
                 new (&r.value) TVal(std::forward<Types>(arguments)...);
             }
         }
-        static inline volatile i32 dbg;
+
         template <typename TKeyConvertible, class... Types>
             requires(!value_is_void_t)
         inline auto& emplaceAndGet(const TKeyConvertible& key, Types&&... arguments)

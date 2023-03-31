@@ -32,6 +32,8 @@
         <Expand>
             <Item Name="[size ]" ExcludeView="simple">len</Item>
             <Item Name="[capacity]" ExcludeView="simple">cap</Item>
+            <Item Name="[data pointer]" ExcludeView="simple">first</Item>
+            <Item Name="[allocator]" ExcludeView="simple">allocator</Item>
             <ArrayItems>
                 <Size>len</Size>
                 <ValuePointer>first</ValuePointer>

@@ -19,8 +19,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "VCore/Utils/CoreTemplates.h"
-#include "VCore/Utils/VUtilsBase.h"
-
+#include "VCore/Utils/VUtilsBase.h" 
 
 namespace vex::union_impl
 {
@@ -224,6 +223,7 @@ namespace vex::union_impl
         using Base = UnionBase<UnionImpl<true, Types...>, Types...>;
         using TSelf = UnionImpl<true, Types...>;
         friend struct UnionBase<UnionImpl<true, Types...>, Types...>;
+        using UnionBase<UnionImpl<true, Types...>, Types...>::UnionBase;
 
         constexpr UnionImpl() = default;
         UnionImpl(const UnionImpl&) = default;
@@ -241,16 +241,15 @@ namespace vex::union_impl
             using TUnderlying = std::decay_t<T>;
             if constexpr (std::is_same_v<TUnderlying, TSelf>)
             {
-                for (u32 i = 0; i < size_of_storage; i++)
-                    storage[i] = arg.storage[i];
-                this->value_index = other.value_index;
+                for (u32 i = 0; i < Base::size_of_storage; i++)
+                    this->storage[i] = arg.storage[i];
+                this->value_index = arg.value_index;
             }
             else
             {
                 static_assert(traits::hasType<TUnderlying, Types...>(),
                     "Union cannot possibly contain this type");
-                std::construct_at(
-                    reinterpret_cast<TUnderlying*>(this->storage), std::forward<T>(arg));
+                new (this->storage)TUnderlying(std::forward<T>(arg));
                 constexpr auto typeIndex = traits::getIndex<TUnderlying, Types...>();
                 this->value_index = typeIndex;
             }

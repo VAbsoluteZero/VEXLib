@@ -83,6 +83,7 @@ namespace vex
                 allocator.dealloc(first);
         }
 
+        FORCE_INLINE auto byteSize() const -> u64 { return len * sizeof(ValType); }
         FORCE_INLINE auto size() const -> i32 { return len; }
         FORCE_INLINE auto capacity() const -> i32 { return cap; }
         FORCE_INLINE auto data() -> ValType* { return first; }

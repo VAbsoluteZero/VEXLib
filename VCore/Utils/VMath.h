@@ -4,6 +4,14 @@
 
 #include <glm/ext/matrix_transform.hpp>
 
+#ifndef FORCE_INLINE
+#if defined(_MSC_VER)
+#define FORCE_INLINE __forceinline
+#else // defined(_MSC_VER)
+#define FORCE_INLINE inline __attribute__((always_inline))
+#endif
+#endif // ! FORCE_INLINE
+
 using v2f = glm::vec2;
 using v3f = glm::vec3;
 using v4f = glm::vec4;

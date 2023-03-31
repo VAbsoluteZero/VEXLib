@@ -24,14 +24,65 @@
 
 namespace vex
 {
+    namespace rng
+    {
+        struct Splitmax64
+        {
+            static constexpr auto magic = u64(0x9E3779B97F4A7C15);
+            u64 state = 4999559;
+            inline void seed(u64 seed) { state = seed; }
+
+            static FORCE_INLINE u64 splitmix64_r(u64& seed)
+            {
+                u64 z = (seed += magic);
+                z = (z ^ (z >> 30)) * u64(0xBF58476D1CE4E5B9);
+                z = (z ^ (z >> 27)) * u64(0x94D049BB133111EB);
+                return z ^ (z >> 31);
+            }
+            static FORCE_INLINE u64 stateless(u64 in_seed, u64 offset)
+            {
+                in_seed += offset * magic;
+                return splitmix64_r(in_seed);
+            }
+            FORCE_INLINE u32 next() { return (u32)splitmix64_r(state); }
+            FORCE_INLINE u64 next64() { return splitmix64_r(state); }
+        };
+
+        struct Rand
+        {
+            using Engine = Splitmax64;
+            static inline Engine impl{};
+            static FORCE_INLINE u32 rand() { return impl.next(); }
+            static FORCE_INLINE u64 rand64() { return impl.next(); }
+            static FORCE_INLINE u32 randMod(u32 mod) { return impl.next() % mod; }
+            static FORCE_INLINE float randFloat01() { return toFloatExpCast(impl.next()); }
+            static FORCE_INLINE double randDouble01() { return toDoubleCast(impl.next64()); }
+
+        private:
+            static FORCE_INLINE float toFloatExpCast(u32 v) { return ldexpf(v, -32); }
+            static FORCE_INLINE double toDoubleCast(u64 val)
+            {
+                static const u64 exp = u64(0x3FF0000000000000);
+                static const u64 mantissa = u64(0x000FFFFFFFFFFFFF);
+                u64 random = (val & mantissa) | exp;
+                return std::bit_cast<double>(random) - 1;
+            }
+            //static FORCE_INLINE float toFloatCast(u32 val)
+            //{
+            //    u32 caster = (val >> 9) * 0x1.0p-24f;
+            //    ;
+            //    return std::bit_cast<float>(caster) - 1.0f;
+            //}
+        };
+    } // namespace rng
     namespace util
     {
-        static constexpr i32 gPrimeNumbers[] = {3, 7, 11, 17, 23, 29, 37, 47, 59, 71, 89, 107,
-            131, 163, 197, 239, 293, 353, 431, 521, 631, 761, 919, 1103, 1327, 1597, 1931, 2333,
-            2801, 3371, 4049, 4861, 5839, 7013, 8419, 10103, 12143, 14591, 17321, 21269, 25253,
-            31393, 39769, 49157, 62851, 90523, 108631, 130363, 156437, 187751, 225307, 270371,
-            324449, 389357, 467237, 560689, 672827, 807403, 946037, 1395263, 1572869, 2009191,
-            2411033, 2893249, 3471899, 4166287, 4999559, 5999471, 7199369};
+        static constexpr i32 gPrimeNumbers[] = {3, 7, 11, 17, 23, 29, 37, 47, 59, 71, 89, 107, 131,
+            163, 197, 239, 293, 353, 431, 521, 631, 761, 919, 1103, 1327, 1597, 1931, 2333, 2801,
+            3371, 4049, 4861, 5839, 7013, 8419, 10103, 12143, 14591, 17321, 21269, 25253, 31393,
+            39769, 49157, 62851, 90523, 108631, 130363, 156437, 187751, 225307, 270371, 324449,
+            389357, 467237, 560689, 672827, 807403, 946037, 1395263, 1572869, 2009191, 2411033,
+            2893249, 3471899, 4166287, 4999559, 5999471, 7199369};
 
         static constexpr i32 gPrimeSize = sizeof(gPrimeNumbers) / sizeof(i32);
 
@@ -150,10 +201,7 @@ namespace vex
             return fnv1a<b64>((u8*)&obj, sizeof(T));
         }
 
-        static inline i32 hash(char* c, i32 sz)
-        {
-            return (i32)murmur::MurmurHash3_x86_32(c, sz);
-        }
+        static inline i32 hash(char* c, i32 sz) { return (i32)murmur::MurmurHash3_x86_32(c, sz); }
 
         struct SHash
         {
@@ -189,7 +237,7 @@ namespace vex
         };
     } // namespace util
 
-    constexpr auto operator"" _fnv1a64(const char* cstr, u64 len) 
+    constexpr auto operator"" _fnv1a64(const char* cstr, u64 len)
     {
         return util::fnv1a<true>((u8*)cstr, len);
     }

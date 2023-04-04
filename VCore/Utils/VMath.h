@@ -102,7 +102,7 @@ namespace vex
         return (1 - ct) * v0 + ct * v1;
     }
 
-    FORCE_INLINE constexpr float nearEqual(
+    FORCE_INLINE float nearEqual(
         float val1, float val2, float eps = epsilon) /*fabs is not constexpr =( */
     {
         return fabsf(val1 - val2) <= epsilon;

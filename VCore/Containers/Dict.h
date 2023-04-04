@@ -744,14 +744,14 @@ namespace vex
         template <class... Types>
         TKey& emplace(Types&&... arguments)
         {
-            Record& r = createRecord(TKey(std::forward<Types>(arguments)...));
+            Dict::Record& r = createRecord(TKey(std::forward<Types>(arguments)...));
             return r.key;
         }
         template <typename TKeyConvertible>
         const TKey* find(const TKeyConvertible& key)
         {
             i32 ind = findRec(key);
-            return ind >= 0 ? &data.recs[ind].key : nullptr;
+            return ind >= 0 ? &Dict::data.recs[ind].key : nullptr;
         }
     };
 } // namespace vex

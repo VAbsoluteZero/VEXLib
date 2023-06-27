@@ -151,3 +151,6 @@ extern void __cdecl __debugbreak(void);
 #define checkLethal(ConditionExpr, Msg) \
     (VEXpriv_DoCheckAlwaysTrigger(ConditionExpr, __FILE__, __LINE__, Msg) ||([] {std::abort(); return false;} ()))
 #endif
+
+
+

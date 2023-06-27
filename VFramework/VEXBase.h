@@ -6,7 +6,6 @@
 #include <VCore/Utils/TTraits.h>
 #include <VCore/Utils/VMath.h>
 #include <VCore/Utils/VUtilsBase.h>
-#include <VFramework/Misc/VUtils.h>
 //
 #include <VCore/Containers/Array.h>
 #include <VCore/Containers/Tuple.h>

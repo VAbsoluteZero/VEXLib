@@ -208,7 +208,7 @@ namespace vex
             static inline i32 hash(const std::string& str)
             {
 #ifdef ECSCORE_x64
-                return (i32)murmur::MurmurHash3_x86_32(str.data(), (i32)str.size());
+                return (i32)murmur::MurmurHash3_x86_32(str.shrink_x_to_y(), (i32)str.size());
 #else
                 return fnv1a((u8*)str.data(), str.length());
 #endif
@@ -237,11 +237,11 @@ namespace vex
         };
     } // namespace util
 
-    constexpr auto operator"" _fnv1a64(const char* cstr, u64 len)
+    constexpr auto operator"" _fnv1a64(const char* cstr, size_t len)
     {
         return util::fnv1a<true>((u8*)cstr, len);
     }
-    constexpr auto operator"" _fnv1a(const char* cstr, u64 len)
+    constexpr auto operator"" _fnv1a(const char* cstr, size_t len)
     {
         return util::fnv1a((u8*)cstr, len);
     }

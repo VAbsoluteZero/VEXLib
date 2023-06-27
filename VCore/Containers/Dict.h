@@ -739,19 +739,20 @@ namespace vex
     class Set : public Dict<TKey, void, TInHasher>
     {
     public:
+        using Base = Dict<TKey, void, TInHasher>;
         using Dict<TKey, void, TInHasher>::Dict;
 
         template <class... Types>
         TKey& emplace(Types&&... arguments)
         {
-            Dict::Record& r = createRecord(TKey(std::forward<Types>(arguments)...));
+            auto& r = createRecord(TKey(std::forward<Types>(arguments)...));
             return r.key;
         }
         template <typename TKeyConvertible>
         const TKey* find(const TKeyConvertible& key)
         {
             i32 ind = findRec(key);
-            return ind >= 0 ? &Dict::data.recs[ind].key : nullptr;
+            return ind >= 0 ? &Base::data.recs[ind].key : nullptr;
         }
     };
 } // namespace vex

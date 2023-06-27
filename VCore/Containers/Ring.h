@@ -68,7 +68,7 @@ namespace vex
         static constexpr bool k_fill_forward = fill_forward;
         static constexpr i32 k_grow_dir = fill_forward ? 1 : -1;
 
-        static_assert(k_capacity > 2, //
+        static_assert(k_capacity >= 2, //
             "k_capacity must be >= 2, otherwise ring just doesnt make any sense.");
 
         inline auto is_full() const -> bool { return k_capacity == num_elements; }

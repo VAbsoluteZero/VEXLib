@@ -2,9 +2,9 @@ import os
 import sys
 dir_path = os.path.dirname(os.path.realpath(__file__))
 filenames = [
-	dir_path + "/VCore/Utils/CoreTemplates.h",
-	dir_path + "/VCore/Containers/Tuple.h",
-	dir_path + "/VCore/Containers/Union.h"
+	dir_path + "/vexcore/utils/CoreTemplates.h",
+	dir_path + "/vexcore/containers/Tuple.h",
+	dir_path + "/vexcore/containers/Union.h"
 ] 
 
 out_file_name = 'containers_monolith.compexp.tmp';

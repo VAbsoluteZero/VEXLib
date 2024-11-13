@@ -11,8 +11,7 @@ AlignOperands: true
 AlignTrailingComments: true
 AllowAllParametersOfDeclarationOnNextLine: true
 AllowShortBlocksOnASingleLine: false
-AllowShortLambdasOnASingleLine: false
-AllowShortCaseLabelsOnASingleLine: true
+AllowShortLambdasOnASingleLine: false 
 AllowShortFunctionsOnASingleLine: true
 AllowShortIfStatementsOnASingleLine: false
 AllowShortLoopsOnASingleLine: false 
@@ -21,14 +20,22 @@ AlwaysBreakTemplateDeclarations: Yes
 BinPackArguments: true
 BinPackParameters: true
 BreakBeforeBinaryOperators: None
-BreakBeforeBraces: Allman
+BraceWrapping:                         
+  AfterClass:      false    
+  AfterEnum:       false
+  AfterFunction:   false          
+  AfterNamespace:  false                
+  AfterStruct:     false
+  AfterUnion:      false 
+  BeforeElse:      true   
+  BeforeLambdaBody: false 
 BreakBeforeInheritanceComma: false
 BreakInheritanceList: BeforeColon
 BreakBeforeTernaryOperators: true 
-BreakStringLiterals: true
+BreakStringLiterals: true  
 ColumnLimit: 100 
 CompactNamespaces: true 
-ConstructorInitializerIndentWidth: 4
+ConstructorInitializerIndentWidth: 0
 ContinuationIndentWidth: 4
 Cpp11BracedListStyle: true
 DerivePointerAlignment: false 
@@ -46,7 +53,9 @@ IncludeCategories:
   - Regex:           '^<.*>'
     Priority:        2 
 IndentCaseLabels: true
-IndentPPDirectives: None
+AllowShortCaseLabelsOnASingleLine : false
+IndentCaseBlocks: false
+IndentPPDirectives: BeforeHash
 IndentWidth: 4
 IndentWrappedFunctionNames: false 
 KeepEmptyLinesAtTheStartOfBlocks: false
@@ -62,7 +71,7 @@ PenaltyBreakString: 1000
 PenaltyBreakTemplateDeclaration: 10
 PenaltyExcessCharacter: 1000000
 PenaltyReturnTypeOnItsOwnLine: 200
-PointerAlignment: Left
+PointerAlignment: Left 
 RawStringFormats:
   - Language: Cpp
     Delimiters:
@@ -75,7 +84,7 @@ RawStringFormats:
       - 'C++'
     CanonicalDelimiter: ''
     BasedOnStyle: google 
-ReflowComments: true
+ReflowComments: true 
 SortIncludes: true
 SortUsingDeclarations: true
 SpaceAfterCStyleCast: false
@@ -93,8 +102,7 @@ SpacesInContainerLiterals: true
 SpacesInCStyleCastParentheses: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
-Standard: Auto
-IndentWidth: 4
+Standard: Auto 
 TabWidth: 4
 
 ...

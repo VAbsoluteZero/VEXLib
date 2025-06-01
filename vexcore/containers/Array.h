@@ -17,11 +17,11 @@ namespace vex {
         FORCE_INLINE auto byteSize() const -> u64 { return len * sizeof(ValType); }
         FORCE_INLINE auto size() const -> const i32 { return len; }
         FORCE_INLINE auto operator[](i32 i) const -> const ValType& {
-            check((i >= 0) && (i < len), "Span access out of bounds");
+            checkLethal((i >= 0) && (i < len), "Span access out of bounds");
             return *(data + i);
         }
-        FORCE_INLINE auto at(i32 i) const -> const ValType& {
-            checkLethal((i >= 0) && (i < len), "Span access out of bounds");
+        FORCE_INLINE auto atUnchecked(i32 i) const -> const ValType& {
+            checkAlwaysParanoid((i >= 0) && (i < len), "Span access out of bounds");
             return *(data + i);
         }
         FORCE_INLINE auto begin() -> const ValType* { return data; }
@@ -89,6 +89,7 @@ namespace vex {
         FORCE_INLINE auto data() -> ValType* { return first; }
         FORCE_INLINE auto data() const -> const ValType* { return first; }
         FORCE_INLINE auto back() const -> ValType* { return len > 0 ? first + len - 1 : nullptr; }
+
         FORCE_INLINE auto begin() -> ValType* { return first; }
         FORCE_INLINE auto end() -> ValType* { return len > 0 ? first + len : nullptr; }
         FORCE_INLINE auto begin() const -> const ValType* { return first; }
@@ -98,11 +99,10 @@ namespace vex {
             checkLethal((i >= 0) && (i <= len), "out of bounds");
             return *(first + i);
         }
-        FORCE_INLINE auto at(i32 i) const -> ValType& {
-            checkLethal((i >= 0) && (i <= len), "out of bounds");
+        FORCE_INLINE auto atUnchecked(i32 i) const -> ValType& {
+            checkAlwaysParanoid((i >= 0) && (i <= len), "out of bounds");
             return *(first + i);
         }
-        FORCE_INLINE auto atUnchecked(i32 i) const -> ValType& { return *(first + i); }
 
         template <typename InValType>
         FORCE_INLINE void add(InValType&& in_val) {
@@ -145,8 +145,9 @@ namespace vex {
                 for (i32 i = len; i < num; i++) {
                     add({});
                 }
-            } else
+            } else {
                 len = num;
+            }
         }
 
         // 'Swaps' element with the last and reduces len by 1, so it CHANGES order.

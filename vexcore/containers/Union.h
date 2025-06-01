@@ -530,6 +530,7 @@ namespace vex::union_impl
             checkAlways_(typeIndex == this->value_index);
 
             auto val = reinterpret_cast<TArg*>(this->storage);
+            this->value_index = traits::type_index_none;
             return std::move(*val);
         }
 
@@ -537,7 +538,7 @@ namespace vex::union_impl
         void setDefault()
         {
             using TArg = std::decay_t<T>;
-            if (this->template hasAnyValue())
+            if (this-> hasAnyValue())
                 this->reset();
             new (this->storage) TArg();
             this->template setTypeIndex<TArg>();

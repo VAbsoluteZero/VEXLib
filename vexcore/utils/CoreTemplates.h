@@ -4,10 +4,10 @@
 #include <utility>
 
 #ifndef FORCE_INLINE
-    #if defined(_MSC_VER) 
-        #define FORCE_INLINE __forceinline 
-    #else // defined(_MSC_VER) 
-        #define FORCE_INLINE inline __attribute__((always_inline)) 
+    #if defined(_MSC_VER)
+        #define FORCE_INLINE __forceinline
+    #else // defined(_MSC_VER)
+        #define FORCE_INLINE inline __attribute__((always_inline))
     #endif
 #endif // ! FORCE_INLINE
 
@@ -43,44 +43,32 @@ using byte = unsigned char;
     VEX_PASTE_INC_16(StartIndex + 48, Body)
 
 
-namespace vex
-{
-    enum class EGenericStatus
-    {
-        Failure,
-        Success
-    };
+namespace vex {
+    enum class EGenericStatus { Failure, Success };
 
-    struct Error
-    {
-    };
-} // namespace vex 
+    struct Error {};
+} // namespace vex
 
-namespace vex
-{
+namespace vex {
     template <typename... Types>
-    constexpr auto maxSizeOf()
-    {
+    constexpr auto maxSizeOf() {
         constexpr size_t list[sizeof...(Types)] = {sizeof(Types)...};
         auto it = &list[0];
         auto range_end = &list[sizeof...(Types)];
         auto curmax = *it;
-        for (; it != range_end; ++it)
-        {
+        for (; it != range_end; ++it) {
             curmax = (curmax > *it) ? curmax : *it;
         }
         return curmax;
     };
 
     template <typename... Types>
-    constexpr auto maxAlignOf()
-    {
+    constexpr auto maxAlignOf() {
         constexpr size_t list[sizeof...(Types)] = {alignof(Types)...};
         auto it = &list[0];
         auto range_end = &list[sizeof...(Types)];
         auto curmax = *it;
-        for (; it != range_end; ++it)
-        {
+        for (; it != range_end; ++it) {
             curmax = (curmax > *it) ? curmax : *it;
         }
         return curmax;
@@ -88,8 +76,7 @@ namespace vex
 } // namespace vex
 
 
-namespace vex::traits
-{
+namespace vex::traits {
     static constexpr size_t type_index_none = 0xff;
     template <typename TType>
     constexpr size_t getTypeIndexInList() // #todo => rename
@@ -97,40 +84,34 @@ namespace vex::traits
         return type_index_none;
     }
     template <typename TType, typename TFirstType, typename... TRest>
-    constexpr size_t getTypeIndexInList()
-    {
+    constexpr size_t getTypeIndexInList() {
         if constexpr (!std::is_same<TType, TFirstType>::value)
             return 1 + getTypeIndexInList<TType, TRest...>();
         return 0;
     }
 
     template <typename TType, typename... TRest>
-    constexpr size_t getIndex()
-    {
+    constexpr size_t getIndex() {
         constexpr auto val = getTypeIndexInList<TType, TRest...>();
         return val > type_index_none ? type_index_none : val;
     }
 
     template <typename TType>
-    constexpr bool hasType()
-    {
+    constexpr bool hasType() {
         return false;
     }
     template <>
-    constexpr bool hasType<void>()
-    {
+    constexpr bool hasType<void>() {
         return false;
     }
     template <typename TType, typename TFirstType, typename... TRest>
-    constexpr bool hasType()
-    {
+    constexpr bool hasType() {
         if constexpr (!std::is_same<TType, TFirstType>::value)
             return hasType<TType, TRest...>();
         return true;
     }
     template <typename... TRest>
-    constexpr bool areAllTrivial()
-    {
+    constexpr bool areAllTrivial() {
         return (... && std::is_trivial_v<TRest>);
     }
     template <typename... TRest>
@@ -138,123 +119,99 @@ namespace vex::traits
 
 
     template <typename T, typename... TRest>
-    constexpr bool isConvertible()
-    {
+    constexpr bool isConvertible() {
         return (... && std::is_convertible_v<T, TRest>);
     }
-    namespace private_impl
-    {
+    namespace private_impl {
         template <bool hash_conversion, typename T, typename... TRest>
-        struct SelectConvertibleTarget
-        {
-        };
+        struct SelectConvertibleTarget {};
         template <typename T, typename... TRest>
-        struct SelectConvertibleTarget<false, T, TRest...>
-        {
+        struct SelectConvertibleTarget<false, T, TRest...> {
             using Type = void;
         };
         template <typename T, typename... TRest>
-        struct SelectConvertibleTarget<true, T, TRest...>
-        {
+        struct SelectConvertibleTarget<true, T, TRest...> {
             using Type = void;
         };
     } // namespace private_impl
 
     template <typename T, typename... TRest>
-    using ConvertionType = private_impl::SelectConvertibleTarget<isConvertible<T, TRest...>, T, TRest...>;
+    using ConvertionType =
+        private_impl::SelectConvertibleTarget<isConvertible<T, TRest...>, T, TRest...>;
 
     template <typename... TArgs>
-    struct TTypeList
-    {
-    };
+    struct TTypeList {};
 
     template <std::size_t I, typename T>
     struct TypeListEnun;
     template <std::size_t I, typename Head, typename... Tail>
-    struct TypeListEnun<I, TTypeList<Head, Tail...>> : TypeListEnun<I - 1, TTypeList<Tail...>>
-    {
+    struct TypeListEnun<I, TTypeList<Head, Tail...>> : TypeListEnun<I - 1, TTypeList<Tail...>> {
         typedef Head type;
     };
     template <typename Head, typename... Tail>
-    struct TypeListEnun<0, TTypeList<Head, Tail...>>
-    {
+    struct TypeListEnun<0, TTypeList<Head, Tail...>> {
         typedef Head type;
     };
 
     template <typename T>
-    struct FunctorTraits : public FunctorTraits<decltype(&T::operator())>
-    {
-    };
+    struct FunctorTraits : public FunctorTraits<decltype(&T::operator())> {};
 
     template <typename ClassType, typename ReturnType, typename... Args>
-    struct FunctorTraits<ReturnType (ClassType::*)(Args...) const>
-    {
+    struct FunctorTraits<ReturnType (ClassType::*)(Args...) const> {
         typedef ReturnType TResult;
 
-        static constexpr size_t arity = sizeof...(Args);  
+        static constexpr size_t arity = sizeof...(Args);
         using ArgTypes = TTypeList<Args...>;
         template <std::size_t I>
         using NthType = typename std::decay_t<typename TypeListEnun<I, TTypeList<Args...>>::type>;
-    };  
+    };
 
     template <typename R, typename... Args>
-    struct FunctorTraits<R (*)(Args...)>
-    {
-        using Pointer = R (*)(Args...); 
+    struct FunctorTraits<R (*)(Args...)> {
+        using Pointer = R (*)(Args...);
         using ArgTypes = TTypeList<Args...>;
         template <std::size_t I>
         using NthType = typename std::decay_t<typename TypeListEnun<I, TTypeList<Args...>>::type>;
-    }; 
+    };
     template <typename R>
-    struct FunctorTraits<R (*)()> 
-    {
+    struct FunctorTraits<R (*)()> {
         using Pointer = R (*)();
         using ArgTypes = void;
     };
 
     template <typename T>
-    constexpr inline decltype(auto) identityFunc(T&& t)
-    {
+    constexpr inline decltype(auto) identityFunc(T&& t) {
         return std::forward<T>(t);
     }
     template <typename... Args>
-    decltype(auto) lastArg(Args&&... args)
-    {
+    decltype(auto) lastArg(Args&&... args) {
         return (vex::traits::identityFunc(args), ...);
     }
-} // namespace vex::traits 
+} // namespace vex::traits
 
-namespace vex
-{
-    namespace impl
-    {
-        struct vxSentinel
-        {
-        };
+namespace vex {
+    namespace impl {
+        struct vxSentinel {};
     } // namespace impl
     static constexpr impl::vxSentinel k_seq_end = impl::vxSentinel{};
 
     template <class T, bool add = true>
     struct AddConst;
     template <class T>
-    struct AddConst<T, true>
-    {
+    struct AddConst<T, true> {
         using type = const T;
     };
     template <class T>
-    struct AddConst<T, false>
-    {
+    struct AddConst<T, false> {
         using type = T;
     };
 
     template <std::size_t index, typename Cur, typename... Args>
-    struct GetTypeByIndex
-    {
+    struct GetTypeByIndex {
         using type = typename GetTypeByIndex<index - 1, Args...>::type;
     };
     template <typename Cur, typename... Args>
-    struct GetTypeByIndex<0, Cur, Args...>
-    {
+    struct GetTypeByIndex<0, Cur, Args...> {
         using type = Cur;
     };
 
@@ -262,29 +219,25 @@ namespace vex
     struct GetTypeByIndexUnwrap;
 
     template <std::size_t index, template <typename...> typename Wrapper, typename... Args>
-    struct GetTypeByIndexUnwrap<index, Wrapper<Args...>>
-    {
+    struct GetTypeByIndexUnwrap<index, Wrapper<Args...>> {
         using type = typename GetTypeByIndex<index, Args...>::type;
     };
 
     template <int range_start, int range_end>
-    struct CRange
-    {
+    struct CRange {
         static constexpr int32_t st = range_start;
 
         static constexpr int32_t signum(int32_t v) { return (0 < v) - (v < 0); }
         static constexpr int32_t step = signum(range_end - range_start);
 
-        struct SqIterator
-        {
+        struct SqIterator {
             friend auto operator==(SqIterator lhs, impl::vxSentinel rhs) { return lhs.isDone(); }
             friend auto operator==(impl::vxSentinel lhs, SqIterator rhs) { return rhs == lhs; }
             friend auto operator!=(SqIterator lhs, impl::vxSentinel rhs) { return !(lhs == rhs); }
             friend auto operator!=(impl::vxSentinel lhs, SqIterator rhs) { return !(lhs == rhs); }
             bool isDone() const { return current == range_end; }
             inline int operator*() const { return current; }
-            inline auto& operator++()
-            {
+            inline auto& operator++() {
                 current += step;
                 return current;
             }
@@ -298,8 +251,7 @@ namespace vex
     template <int range_end>
     using ZeroTo = CRange<0, range_end>;
 
-    struct Range
-    {
+    struct Range {
         static constexpr const impl::vxSentinel k_seq_end = impl::vxSentinel{};
         friend auto operator==(Range lhs, impl::vxSentinel rhs) { return lhs.isDone(); }
         friend auto operator==(impl::vxSentinel lhs, Range rhs) { return rhs == lhs; }
@@ -309,8 +261,7 @@ namespace vex
         bool isDone() const { return current >= range_end; }
         inline int operator*() const { return current; }
 
-        inline auto& operator++()
-        {
+        inline auto& operator++() {
             current++;
             return *this;
         }
@@ -329,21 +280,19 @@ namespace vex
         impl::vxSentinel end() const noexcept { return k_seq_end; };
     };
 
-    inline Range operator"" _times(unsigned long long x) { return Range((int)x); }
-     
+    inline Range operator""_times(unsigned long long x) { return Range((int)x); }
+
     template <typename T>
-    void zeroInit(T* arg)
-    {
+    void zeroInit(T* arg) {
         memset(&arg, 0, sizeof(std::decay_t<T>));
     }
 
     template <typename T> // use with auto: auto v = makeZeroed<POD>(); RVO should make it free.
-    inline T makeZeroed() noexcept
-    {
+    inline T makeZeroed() noexcept {
         T outval;
         memset(&outval, 0, sizeof(std::decay_t<T>));
         return outval;
     }
 } // namespace vex
 
-#define vexZeroInit(x) vex::zeroInit(x) 
+#define vexZeroInit(x) vex::zeroInit(x)
